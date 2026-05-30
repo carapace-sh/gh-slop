@@ -8,6 +8,8 @@ github.com/carapace-sh/carapace v1.11.6 h1:fUZv+oAMgbiDEpNPNis4n35tzqE3h8yshOohL
 github.com/carapace-sh/carapace v1.11.6/go.mod h1:5MUSHyLN9GGb5/NY/j9VI68/TcZV4ApRCAHGg4WeU0s=
 github.com/carapace-sh/carapace-shlex v1.1.1 h1:ccmNeetAYZOk4IcV36youFDsXusT9uCNW2Njkw+QS+Q=
 github.com/carapace-sh/carapace-shlex v1.1.1/go.mod h1:lJ4ZsdxytE0wHJ8Ta9S7Qq0XpjgjU0mdfCqiI2FHx7M=
+github.com/carapace-sh/carapace-spec v1.5.3 h1:tFAaUT1N9IXpynpecpNBPgNpB7w8yeM1t/fFeA7EfUk=
+github.com/carapace-sh/carapace-spec v1.5.3/go.mod h1:sCHRUZj8+2ZS3oX8Pxdz0Im2fG1MlKuvNq/d3BqvX4k=
 github.com/charmbracelet/colorprofile v0.2.3-0.20250311203215-f60798e515dc h1:4pZI35227imm7yK2bGPcfpFEmuY1gc2YSTShr4iJBfs=
 github.com/charmbracelet/colorprofile v0.2.3-0.20250311203215-f60798e515dc/go.mod h1:X4/0JoqgTIPSFcRA/P6INZzIuyqdFY5rm8tb41s9okk=
 github.com/charmbracelet/lipgloss v1.1.0 h1:vYXsiLHVkK7fp74RkV7b2kq9+zDLoEU4MZoFqR/noCY=

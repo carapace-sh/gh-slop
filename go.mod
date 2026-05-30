@@ -4,6 +4,7 @@ go 1.26.3
 
 require (
 	github.com/carapace-sh/carapace v1.11.6
+	github.com/carapace-sh/carapace-spec v1.5.3
 	github.com/charmbracelet/lipgloss v1.1.0
 	github.com/cli/go-gh/v2 v2.11.2
 	github.com/spf13/cobra v1.10.2

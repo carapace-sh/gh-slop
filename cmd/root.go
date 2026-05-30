@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/carapace-sh/carapace"
+	spec "github.com/carapace-sh/carapace-spec"
 	"github.com/cli/go-gh/v2/pkg/api"
 	"github.com/cli/go-gh/v2/pkg/repository"
 	"github.com/rsteube/gh-slop/pkg/actions"
@@ -41,6 +42,9 @@ func init() {
 	carapace.Gen(rootCmd).FlagCompletion(carapace.ActionMap{
 		"repo": actions.ActionRepos(),
 	})
+
+	spec.AddMacro("Repos", spec.MacroN(actions.ActionRepos))
+	spec.Register(rootCmd)
 }
 
 func resolveRepo() (repository.Repository, error) {
