@@ -40,7 +40,7 @@ func init() {
 
 	carapace.Gen(rootCmd)
 	carapace.Gen(rootCmd).FlagCompletion(carapace.ActionMap{
-		"repo": actions.ActionRepos(),
+		"repo": actions.ActionRepos().MultiParts("/"),
 	})
 
 	spec.AddMacro("Repos", spec.MacroN(actions.ActionRepos))
