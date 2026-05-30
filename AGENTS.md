@@ -42,6 +42,8 @@ pkg/actions/repo.go  → carapace completion action for repositories
 
 **Output styling**: `cmd/list.go` groups PRs by author and uses `lipgloss` for terminal styling. PRs are time-clustered (within 1-hour windows) and color-coded: white for the first in a cluster, yellow for the second, red for third+.
 
+- **Color palette**: Use the [Charm color palette](https://github.com/charmbracelet/x/tree/main/colors) (`github.com/charmbracelet/x/colors`) for terminal colors. This package provides `lipgloss.AdaptiveColor` presets with light/dark variants (e.g., `colors.Indigo`, `colors.Green`, `colors.Fuschia`, `colors.Gray`). Prefer these named colors over hardcoded hex values.
+
 ## Key Conventions
 
 - **Module path**: `github.com/rsteube/gh-slop`
