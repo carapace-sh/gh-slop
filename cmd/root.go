@@ -4,9 +4,9 @@ import (
 	"fmt"
 
 	"github.com/carapace-sh/carapace"
-	"github.com/carapace-sh/carapace-bridge/pkg/actions/bridge"
 	"github.com/cli/go-gh/v2/pkg/api"
 	"github.com/cli/go-gh/v2/pkg/repository"
+	"github.com/rsteube/gh-slop/pkg/actions"
 	"github.com/spf13/cobra"
 )
 
@@ -39,7 +39,7 @@ func init() {
 
 	carapace.Gen(rootCmd)
 	carapace.Gen(rootCmd).FlagCompletion(carapace.ActionMap{
-		"repo": bridge.ActionCarapaceBin("gh").Split().Filter("repo", "list"),
+		"repo": actions.ActionRepos(),
 	})
 }
 

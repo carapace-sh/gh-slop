@@ -4,7 +4,6 @@ go 1.26.3
 
 require (
 	github.com/carapace-sh/carapace v1.11.6
-	github.com/carapace-sh/carapace-bridge v1.5.3
 	github.com/cli/go-gh/v2 v2.13.0
 	github.com/spf13/cobra v1.10.2
 )
