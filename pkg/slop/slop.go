@@ -19,9 +19,9 @@ func ListNewContributors(r repository.Repository) ([]PullRequest, error) {
 		return nil, fmt.Errorf("failed to create graphql client: %w", err)
 	}
 
-	contributors, err := fetchContributors(client, r)
+	existingContributors, err := fetchExistingContributors(client, r)
 	if err != nil {
-		return nil, fmt.Errorf("failed to fetch contributors: %w", err)
+		return nil, fmt.Errorf("failed to fetch existing contributors: %w", err)
 	}
 
 	pullRequests, err := fetchPullRequests(client, r)
@@ -31,7 +31,7 @@ func ListNewContributors(r repository.Repository) ([]PullRequest, error) {
 
 	var newContributors []PullRequest
 	for _, pr := range pullRequests {
-		if !contributors[pr.Author] {
+		if !existingContributors[pr.Author] {
 			newContributors = append(newContributors, pr)
 		}
 	}
@@ -39,7 +39,7 @@ func ListNewContributors(r repository.Repository) ([]PullRequest, error) {
 	return newContributors, nil
 }
 
-func fetchContributors(client graphqlDoer, r repository.Repository) (map[string]bool, error) {
+func fetchExistingContributors(client graphqlDoer, r repository.Repository) (map[string]bool, error) {
 	contributors := map[string]bool{}
 	vars := map[string]any{
 		"owner": r.Owner,
@@ -53,38 +53,28 @@ func fetchContributors(client graphqlDoer, r repository.Repository) (map[string]
 		vars["cursor"] = cursor
 		var response struct {
 			Repository struct {
-				Object struct {
-					Commit struct {
-						History struct {
-							PageInfo struct {
-								HasNextPage bool    `json:"hasNextPage"`
-								EndCursor   *string `json:"endCursor"`
-							} `json:"pageInfo"`
-							Edges []struct {
-								Node struct {
-									Author struct {
-										User struct {
-											Login string `json:"login"`
-										} `json:"user"`
-									} `json:"author"`
-								} `json:"node"`
-							} `json:"edges"`
-						} `json:"history"`
-					} `json:"... on Commit"`
-				} `json:"object"`
+				PullRequests struct {
+					PageInfo struct {
+						HasNextPage bool    `json:"hasNextPage"`
+						EndCursor   *string `json:"endCursor"`
+					} `json:"pageInfo"`
+					Edges []struct {
+						Node struct {
+							Author struct {
+								Login string `json:"login"`
+							} `json:"author"`
+						} `json:"node"`
+					} `json:"edges"`
+				} `json:"pullRequests"`
 			} `json:"repository"`
 		}
 
 		query := `
 			query($owner: String!, $name: String!, $cursor: String) {
 				repository(owner: $owner, name: $name) {
-					object(expression: "HEAD") {
-						... on Commit {
-							history(first: 100, after: $cursor) {
-								pageInfo { hasNextPage endCursor }
-								edges { node { author { user { login } } } }
-							}
-						}
+					pullRequests(first: 100, after: $cursor, states: [MERGED, CLOSED]) {
+						pageInfo { hasNextPage endCursor }
+						edges { node { author { login } } }
 					}
 				}
 			}`
@@ -94,15 +84,15 @@ func fetchContributors(client graphqlDoer, r repository.Repository) (map[string]
 			return nil, err
 		}
 
-		for _, edge := range response.Repository.Object.Commit.History.Edges {
-			login := edge.Node.Author.User.Login
+		for _, edge := range response.Repository.PullRequests.Edges {
+			login := edge.Node.Author.Login
 			if login != "" {
 				contributors[login] = true
 			}
 		}
 
-		hasNext = response.Repository.Object.Commit.History.PageInfo.HasNextPage
-		cursor = response.Repository.Object.Commit.History.PageInfo.EndCursor
+		hasNext = response.Repository.PullRequests.PageInfo.HasNextPage
+		cursor = response.Repository.PullRequests.PageInfo.EndCursor
 	}
 
 	return contributors, nil
