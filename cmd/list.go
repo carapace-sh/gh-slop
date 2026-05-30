@@ -3,12 +3,11 @@ package cmd
 import (
 	"fmt"
 	"sort"
-	"strings"
 	"time"
 
 	"github.com/carapace-sh/carapace"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/charmbracelet/lipgloss/table"
+	"github.com/charmbracelet/lipgloss/list"
 	"github.com/rsteube/gh-slop/pkg/slop"
 	"github.com/spf13/cobra"
 )
@@ -38,76 +37,61 @@ var listCmd = &cobra.Command{
 		authors := sortedKeys(grouped)
 
 		authorStyle := lipgloss.NewStyle().
-			Foreground(lipgloss.Color("12")).
+			Foreground(lipgloss.AdaptiveColor{Light: "#4a6892", Dark: "#87a7d9"}).
 			Bold(true)
 
-		headerStyle := lipgloss.NewStyle().
-			Foreground(lipgloss.Color("8"))
+		dimStyle := lipgloss.NewStyle().
+			Foreground(lipgloss.AdaptiveColor{Light: "#6b6f76", Dark: "#9aa0aa"})
 
-		sepStyle := lipgloss.NewStyle().
-			Foreground(lipgloss.Color("8"))
+		whiteStyle := lipgloss.NewStyle().
+			Foreground(lipgloss.AdaptiveColor{Light: "#333333", Dark: "#eeeeee"})
 
-		authorRowIndices := map[int]bool{}
-		sepRowIndices := map[int]bool{}
-		prNumberStyles := map[int]lipgloss.Style{}
+		yellowStyle := lipgloss.NewStyle().
+			Foreground(lipgloss.AdaptiveColor{Light: "#b58b00", Dark: "#ffd666"})
 
-		var rows [][]string
-		for i, author := range authors {
+		redStyle := lipgloss.NewStyle().
+			Foreground(lipgloss.AdaptiveColor{Light: "#cc3333", Dark: "#ff6666"})
+
+		var sections []string
+		for _, author := range authors {
 			prList := grouped[author]
 			sortByCreatedAt(prList)
-
-			if i > 0 {
-				sepRowIndices[len(rows)] = true
-				rows = append(rows, []string{strings.Repeat("─", 40), "", ""})
-			}
-			authorRowIndices[len(rows)] = true
-			rows = append(rows, []string{"@" + author, "", ""})
 
 			parsedTimes := parseTimes(prList)
 			clusters := clusterByTime(parsedTimes, time.Hour)
 
+			var items []string
 			for j, pr := range prList {
-				prNum := fmt.Sprintf("#%d", pr.Number)
-				rows = append(rows, []string{
-					prNum,
-					formatTime(pr.CreatedAt),
-					pr.Title,
-				})
+				entry := fmt.Sprintf("#%d  %s  %s", pr.Number, formatTime(pr.CreatedAt), pr.Title)
 
-					if cluster, ok := clusters[j]; ok && cluster.Highlight {
-					degree := float64(cluster.Position) / float64(cluster.Size-1)
-					g := int(255 * (1 - degree))
-					prNumberStyles[len(rows)-1] = lipgloss.NewStyle().Foreground(lipgloss.Color(fmt.Sprintf("#ff%02x%02x", g, g)))
+				if cluster, ok := clusters[j]; ok {
+					switch cluster.Position {
+					case 0:
+						entry = whiteStyle.Render(entry)
+					case 1:
+						entry = yellowStyle.Render(entry)
+					default:
+						entry = redStyle.Render(entry)
+					}
+				} else {
+					entry = dimStyle.Render(entry)
 				}
+
+				items = append(items, entry)
 			}
+
+			anyItems := make([]any, len(items))
+			for i, item := range items {
+				anyItems[i] = item
+			}
+
+			l := list.New(anyItems...).
+				Enumerator(list.Dash)
+
+			sections = append(sections, authorStyle.Render("@"+author)+"\n"+l.String())
 		}
 
-		t := table.New().
-			Headers("PR", "Created", "Title").
-			Rows(rows...).
-			StyleFunc(func(row, col int) lipgloss.Style {
-				switch {
-				case row == table.HeaderRow:
-					return headerStyle
-				case sepRowIndices[row]:
-					return sepStyle
-				case authorRowIndices[row]:
-					return authorStyle
-				case col == 0:
-					if style, ok := prNumberStyles[row]; ok {
-						return style
-					}
-				}
-				return lipgloss.NewStyle()
-			}).
-			BorderLeft(false).
-			BorderRight(false).
-			BorderTop(false).
-			BorderBottom(false).
-			BorderHeader(false).
-			BorderColumn(false)
-
-		fmt.Println(t.Render())
+		fmt.Println(lipgloss.JoinVertical(lipgloss.Left, sections...))
 
 		return nil
 	},
@@ -155,9 +139,8 @@ func parseTimes(prs []slop.PullRequest) []time.Time {
 }
 
 type clusterStep struct {
-	Size       int
-	Position   int
-	Highlight  bool
+	Size     int
+	Position int
 }
 
 func clusterByTime(times []time.Time, threshold time.Duration) map[int]clusterStep {
@@ -165,7 +148,6 @@ func clusterByTime(times []time.Time, threshold time.Duration) map[int]clusterSt
 		return nil
 	}
 
-	// first pass: assign group ids
 	groupIDs := make([]int, len(times))
 	currentGroup := 0
 	groupIDs[0] = 0
@@ -179,25 +161,22 @@ func clusterByTime(times []time.Time, threshold time.Duration) map[int]clusterSt
 		}
 	}
 
-	// second pass: count group sizes
 	groupSizes := map[int]int{}
 	for _, gid := range groupIDs {
 		groupSizes[gid]++
 	}
 
-	// third pass: assign positions within each group
-		positions := map[int]int{}
+	positions := map[int]int{}
 	result := map[int]clusterStep{}
 
 	for i, gid := range groupIDs {
 		pos := positions[gid]
 		positions[gid] = pos + 1
 
-		if groupSizes[gid] >= 3 {
+		if groupSizes[gid] >= 2 {
 			result[i] = clusterStep{
-				Size:      groupSizes[gid],
-				Position:  pos,
-				Highlight: true,
+				Size:     groupSizes[gid],
+				Position: pos,
 			}
 		}
 	}
@@ -210,5 +189,5 @@ func formatTime(s string) string {
 	if err != nil {
 		return s
 	}
-	return t.Format("Jan 02 15:04")
+	return t.Format("2006-01-02 15:04")
 }
