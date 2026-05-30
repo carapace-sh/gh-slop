@@ -8,6 +8,8 @@ import (
 	"github.com/spf13/cobra"
 )
 
+var minContributions int
+
 var listCmd = &cobra.Command{
 	Use:   "list",
 	Short: "List pull requests from new contributors",
@@ -17,7 +19,7 @@ var listCmd = &cobra.Command{
 			return err
 		}
 
-		prs, err := slop.ListNewContributors(r)
+		prs, err := slop.ListNewContributors(r, minContributions)
 		if err != nil {
 			return err
 		}
@@ -32,5 +34,6 @@ var listCmd = &cobra.Command{
 
 func init() {
 	rootCmd.AddCommand(listCmd)
+	listCmd.Flags().IntVarP(&minContributions, "min-contributions", "m", 1, "Minimum merged PRs for a contributor to be filtered out")
 	carapace.Gen(listCmd)
 }

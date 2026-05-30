@@ -13,13 +13,13 @@ type PullRequest struct {
 	Title  string
 }
 
-func ListNewContributors(r repository.Repository) ([]PullRequest, error) {
+func ListNewContributors(r repository.Repository, minContributions int) ([]PullRequest, error) {
 	client, err := api.NewGraphQLClient(api.ClientOptions{Host: r.Host})
 	if err != nil {
 		return nil, fmt.Errorf("failed to create graphql client: %w", err)
 	}
 
-	existingContributors, err := fetchExistingContributors(client, r)
+	contributionCounts, err := fetchExistingContributors(client, r)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch existing contributors: %w", err)
 	}
@@ -31,7 +31,7 @@ func ListNewContributors(r repository.Repository) ([]PullRequest, error) {
 
 	var newContributors []PullRequest
 	for _, pr := range pullRequests {
-		if !existingContributors[pr.Author] {
+		if contributionCounts[pr.Author] < minContributions {
 			newContributors = append(newContributors, pr)
 		}
 	}
@@ -39,8 +39,8 @@ func ListNewContributors(r repository.Repository) ([]PullRequest, error) {
 	return newContributors, nil
 }
 
-func fetchExistingContributors(client graphqlDoer, r repository.Repository) (map[string]bool, error) {
-	contributors := map[string]bool{}
+func fetchExistingContributors(client graphqlDoer, r repository.Repository) (map[string]int, error) {
+	contributors := map[string]int{}
 	vars := map[string]any{
 		"owner": r.Owner,
 		"name":  r.Name,
@@ -87,7 +87,7 @@ func fetchExistingContributors(client graphqlDoer, r repository.Repository) (map
 		for _, edge := range response.Repository.PullRequests.Edges {
 			login := edge.Node.Author.Login
 			if login != "" {
-				contributors[login] = true
+				contributors[login]++
 			}
 		}
 
