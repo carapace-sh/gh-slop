@@ -42,19 +42,18 @@ pkg/actions/repo.go  → carapace completion action for repositories
 
 **Output styling**: `cmd/list.go` groups PRs by author and uses `lipgloss` for terminal styling. PRs are time-clustered (within 1-hour windows) and color-coded: white for the first in a cluster, yellow for the second, red for third+.
 
-- **Color palette**: Use the [Charm color palette](https://github.com/charmbracelet/x/tree/main/colors) (`github.com/charmbracelet/x/colors`) for terminal colors. This package provides `lipgloss.AdaptiveColor` presets with light/dark variants (e.g., `colors.Indigo`, `colors.Green`, `colors.Fuschia`, `colors.Gray`). Prefer these named colors over hardcoded hex values.
-
 ## Key Conventions
 
 - **Module path**: `github.com/rsteube/gh-slop`
 - **Go version**: 1.26.3 (specified in go.mod)
-- **Cobra + carapace**: Commands use `spf13/cobra` for CLI structure and `carapace-sh/carapace` for shell completions. Every command with flags calls `carapace.Gen(cmd)` in its `init()`.
+- **Cobra + carapace**: Commands use `spf13/cobra` for CLI structure and `carapace-sh/carapace` for shell completions. Every command calls `carapace.Gen(cmd)` in its `init()` to initialize carapace.
 - **carapace-spec**: The root command registers with `spec.Register(rootCmd)` and exposes a `Repos` macro via `spec.AddMacro`. This enables YAML-based spec generation for carapace user specs.
 - **gh API access**: Uses `go-gh/v2` (`api` package) for both REST and GraphQL. REST client from `api.DefaultRESTClient()`, GraphQL client from `api.NewGraphQLClient()`. The `--repo`/`-R` flag uses `repository.Parse()`/`repository.Current()` from go-gh.
 - **GraphQL pagination**: `fetchPullRequests` paginates with cursors (100 per page). New queries should follow this pattern.
 - **Concurrent API calls**: `fetchContributionCounts` uses a semaphore (`chan struct{}, 5`) to limit concurrency. Follow this pattern for any batched GitHub API calls.
-- **Interface-based testing**: `graphqlDoer` interface in `pkg/slop/slop.go` abstracts the GraphQL client, enabling mock injection for tests.
+- **Interface-based testing**: `graphqlDoer` interface in `pkg/slop/slop.go` abstracts the GraphQL client, enabling mock injection for tests. Note: `graphqlDoer` is unexported, so tests must reside in the `slop` package.
 - **Flag naming**: Uses `pflag` conventions via cobra — `StringVarP`/`IntVarP` with short flags.
+- **Color palette**: Use the [Charm color palette](https://github.com/charmbracelet/x/tree/main/colors) (`github.com/charmbracelet/x/colors`) for terminal colors. This package provides `lipgloss.AdaptiveColor` presets with light/dark variants (e.g., `colors.Indigo`, `colors.Green`, `colors.Fuschia`, `colors.Gray`). Prefer these named colors over hardcoded hex values.
 
 ## Release
 
@@ -90,11 +89,3 @@ Current carapace integration in this project:
 When adding new completion actions, follow the patterns established in `pkg/actions/repo.go` and consult the **carapace-action** skill for naming conventions, documentation format, caching, and macro registration.
 
 For loosely coupled completions (e.g., reusing `carapace.tools.gh.*` macros from carapace-bin), use `spec.ActionMacro` to reference them by name rather than importing Go packages directly. Check available macros with the `list_macros` MCP tool.
-
-## Gotchas
-
-- The `graphqlDoer` interface in `pkg/slop/slop.go` is unexported. To test `ListNewContributors` from external packages, you'd need to either export it or test from within the `slop` package.
-- The root command (no subcommand) hits the REST API to verify auth and print the current user. The `list` subcommand is the actual feature — this is intentional for a `gh` extension.
-- `go-gh` relies on the `gh` CLI's auth config. Running locally requires being authenticated via `gh auth login`.
-- The `--repo` flag is persistent (`PersistentFlags`), so it applies to all subcommands.
-- `ActionRepos` in `pkg/actions/repo.go` caches results for 24 hours. It filters to repos where the user has push or admin permissions.
