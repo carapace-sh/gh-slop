@@ -8,7 +8,6 @@ import (
 	"github.com/carapace-sh/carapace"
 	"github.com/carapace-sh/carapace/pkg/cache/key"
 	"github.com/carapace-sh/carapace/pkg/style"
-	"github.com/cli/go-gh/v2/pkg/repository"
 	"github.com/rsteube/gh-slop/pkg/slop"
 )
 
@@ -17,39 +16,25 @@ import (
 //	slopper ([1/2] full name)
 //	another ([4/8] full name)
 func ActionSloppers(repos ...string) carapace.Action {
-	return carapace.ActionCallback(func(c carapace.Context) carapace.Action {
-		resolvedRepos, err := resolveRepos(repos)
-		if err != nil {
-			return carapace.ActionMessage(err.Error())
-		}
+	resolvedRepos, err := slop.ResolveRepos(repos)
+	if err != nil {
+		return carapace.ActionMessage(err.Error())
+	}
 
-		prs, err := slop.ListNewContributors(resolvedRepos, 1)
+	repoKeys := make([]string, len(resolvedRepos))
+	for i, r := range resolvedRepos {
+		repoKeys[i] = r.Owner + "/" + r.Name
+	}
+
+	return carapace.ActionCallback(func(c carapace.Context) carapace.Action {
+		prs, err := slop.ListNewContributors(resolvedRepos, 3) // TODO config for min contributions
 		if err != nil {
 			return carapace.ActionMessage(err.Error())
 		}
 
 		authorPRs := groupByAuthor(prs)
 		return actionSloppersValues(authorPRs)
-	}).Cache(15*time.Minute, key.String(sortedRepos(repos)...))
-}
-
-func resolveRepos(repos []string) ([]repository.Repository, error) {
-	if len(repos) > 0 {
-		result := make([]repository.Repository, 0, len(repos))
-		for _, r := range repos {
-			parsed, err := repository.Parse(r)
-			if err != nil {
-				return nil, fmt.Errorf("failed to parse repo %q: %w", r, err)
-			}
-			result = append(result, parsed)
-		}
-		return result, nil
-	}
-	current, err := repository.Current()
-	if err != nil {
-		return nil, err
-	}
-	return []repository.Repository{current}, nil
+	}).Cache(15*time.Minute, key.String(sortedStrings(repoKeys...)...))
 }
 
 type slopper struct {
@@ -100,9 +85,9 @@ func groupByAuthor(prs []slop.PRWithRepo) map[string][]slop.PRWithRepo {
 	return grouped
 }
 
-func sortedRepos(repos []string) []string {
-	sorted := make([]string, len(repos))
-	copy(sorted, repos)
+func sortedStrings(s ...string) []string {
+	sorted := make([]string, len(s))
+	copy(sorted, s)
 	sort.Strings(sorted)
 	return sorted
 }

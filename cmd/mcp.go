@@ -10,7 +10,7 @@ var mcpCmd = &cobra.Command{
 	Short:  "Start the MCP server",
 	Hidden: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		server := mcp.NewServer(mcp.ListNewContributorsHandler)
+		server := mcp.NewServer(mcp.ToolHandler)
 		return server.ServeStdio()
 	},
 }
