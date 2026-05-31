@@ -15,33 +15,77 @@ type PullRequest struct {
 	CreatedAt string
 }
 
-func ListNewContributors(r repository.Repository, minContributions int) ([]PullRequest, error) {
-	client, err := api.NewGraphQLClient(api.ClientOptions{Host: r.Host})
-	if err != nil {
-		return nil, fmt.Errorf("failed to create graphql client: %w", err)
+type PRWithRepo struct {
+	PullRequest PullRequest
+	Repo        string // "owner/name" for display prefix
+}
+
+func ListNewContributors(repos []repository.Repository, minContributions int) ([]PRWithRepo, error) {
+	multiRepo := len(repos) > 1
+
+	type result struct {
+		repo string
+		prs []PullRequest
+		err error
 	}
 
+	sem := make(chan struct{}, 5)
+	var wg sync.WaitGroup
+	results := make(chan result, len(repos))
+
+	for _, r := range repos {
+		wg.Add(1)
+		go func(r repository.Repository) {
+			defer wg.Done()
+			sem <- struct{}{}
+			defer func() { <-sem }()
+
+			client, err := api.NewGraphQLClient(api.ClientOptions{Host: r.Host})
+			if err != nil {
+				results <- result{repo: r.Owner + "/" + r.Name, err: fmt.Errorf("failed to create graphql client: %w", err)}
+				return
+			}
+
+			prs, err := listNewContributors(client, r, minContributions)
+			results <- result{repo: r.Owner + "/" + r.Name, prs: prs, err: err}
+		}(r)
+	}
+
+	go func() {
+		wg.Wait()
+		close(results)
+	}()
+
+	var allPRs []PRWithRepo
+	for res := range results {
+		if res.err != nil {
+			return nil, fmt.Errorf("%s: %w", res.repo, res.err)
+		}
+		for _, pr := range res.prs {
+			repoLabel := ""
+			if multiRepo {
+				repoLabel = res.repo
+			}
+			allPRs = append(allPRs, PRWithRepo{
+				PullRequest: pr,
+				Repo:        repoLabel,
+			})
+		}
+	}
+
+	return allPRs, nil
+}
+
+func listNewContributors(client graphqlDoer, r repository.Repository, minContributions int) ([]PullRequest, error) {
 	pullRequests, err := fetchPullRequests(client, r)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch pull requests: %w", err)
 	}
 
-	contributionCounts, err := fetchContributionCounts(client, r, pullRequests)
-	if err != nil {
-		return nil, fmt.Errorf("failed to fetch contribution counts: %w", err)
-	}
-
-	var newContributors []PullRequest
-	for _, pr := range pullRequests {
-		if contributionCounts[pr.Author] < minContributions {
-			newContributors = append(newContributors, pr)
-		}
-	}
-
-	return newContributors, nil
+	return filterNewContributors(client, r, pullRequests, minContributions)
 }
 
-func fetchContributionCounts(client graphqlDoer, r repository.Repository, openPRs []PullRequest) (map[string]int, error) {
+func filterNewContributors(client graphqlDoer, r repository.Repository, pullRequests []PullRequest, minContributions int) ([]PullRequest, error) {
 	type result struct {
 		author string
 		count  int
@@ -49,7 +93,7 @@ func fetchContributionCounts(client graphqlDoer, r repository.Repository, openPR
 	}
 
 	uniqueAuthors := map[string]bool{}
-	for _, pr := range openPRs {
+	for _, pr := range pullRequests {
 		if pr.Author != "" {
 			uniqueAuthors[pr.Author] = true
 		}
@@ -112,7 +156,14 @@ func fetchContributionCounts(client graphqlDoer, r repository.Repository, openPR
 		counts[res.author] = res.count
 	}
 
-	return counts, nil
+	var newContributors []PullRequest
+	for _, pr := range pullRequests {
+		if counts[pr.Author] < minContributions {
+			newContributors = append(newContributors, pr)
+		}
+	}
+
+	return newContributors, nil
 }
 
 func fetchPullRequests(client graphqlDoer, r repository.Repository) ([]PullRequest, error) {

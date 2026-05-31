@@ -10,10 +10,7 @@ import (
 	"github.com/rsteube/gh-slop/pkg/slop"
 )
 
-type PRWithRepo struct {
-	PullRequest slop.PullRequest
-	Repo        string // "owner/name" for display prefix
-}
+type PRWithRepo = slop.PRWithRepo
 
 var (
 	authorStyle = lipgloss.NewStyle().
@@ -33,7 +30,7 @@ var (
 			Foreground(lipgloss.AdaptiveColor{Light: "#cc3333", Dark: "#ff6666"})
 )
 
-func Render(prs []PRWithRepo) string {
+func Render(prs []slop.PRWithRepo) string {
 	if len(prs) == 0 {
 		return "No first-time contributors with open pull requests."
 	}
@@ -83,22 +80,22 @@ func Render(prs []PRWithRepo) string {
 	return lipgloss.JoinVertical(lipgloss.Left, sections...)
 }
 
-func prLabel(pr PRWithRepo) string {
+func prLabel(pr slop.PRWithRepo) string {
 	if pr.Repo != "" {
 		return fmt.Sprintf("%s#%d", pr.Repo, pr.PullRequest.Number)
 	}
 	return fmt.Sprintf("#%d", pr.PullRequest.Number)
 }
 
-func groupByAuthor(prs []PRWithRepo) map[string][]PRWithRepo {
-	grouped := map[string][]PRWithRepo{}
+func groupByAuthor(prs []slop.PRWithRepo) map[string][]slop.PRWithRepo {
+	grouped := map[string][]slop.PRWithRepo{}
 	for _, pr := range prs {
 		grouped[pr.PullRequest.Author] = append(grouped[pr.PullRequest.Author], pr)
 	}
 	return grouped
 }
 
-func sortedKeys(m map[string][]PRWithRepo) []string {
+func sortedKeys(m map[string][]slop.PRWithRepo) []string {
 	keys := make([]string, 0, len(m))
 	for k := range m {
 		keys = append(keys, k)
@@ -107,13 +104,13 @@ func sortedKeys(m map[string][]PRWithRepo) []string {
 	return keys
 }
 
-func sortByCreatedAt(prs []PRWithRepo) {
+func sortByCreatedAt(prs []slop.PRWithRepo) {
 	sort.Slice(prs, func(i, j int) bool {
 		return prs[i].PullRequest.CreatedAt < prs[j].PullRequest.CreatedAt
 	})
 }
 
-func parseTimes(prs []PRWithRepo) []time.Time {
+func parseTimes(prs []slop.PRWithRepo) []time.Time {
 	times := make([]time.Time, len(prs))
 	for i, pr := range prs {
 		t, err := time.Parse(time.RFC3339, pr.PullRequest.CreatedAt)

@@ -20,28 +20,12 @@ var listCmd = &cobra.Command{
 			return err
 		}
 
-		multiRepo := len(repos) > 1
-
-		var allPRs []render.PRWithRepo
-		for _, r := range repos {
-			prs, err := slop.ListNewContributors(r, minContributions)
-			if err != nil {
-				return fmt.Errorf("%s/%s: %w", r.Owner, r.Name, err)
-			}
-
-			for _, pr := range prs {
-				repoLabel := ""
-				if multiRepo {
-					repoLabel = fmt.Sprintf("%s/%s", r.Owner, r.Name)
-				}
-				allPRs = append(allPRs, render.PRWithRepo{
-					PullRequest: pr,
-					Repo:        repoLabel,
-				})
-			}
+		prs, err := slop.ListNewContributors(repos, minContributions)
+		if err != nil {
+			return err
 		}
 
-		fmt.Println(render.Render(allPRs))
+		fmt.Println(render.Render(prs))
 		return nil
 	},
 }
