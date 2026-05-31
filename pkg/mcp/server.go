@@ -1,14 +1,12 @@
 package mcp
 
 import (
-	"bufio"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
-	"sync"
 
-	"github.com/rsteube/gh-slop/pkg/actions"
 	"github.com/rsteube/gh-slop/pkg/slop"
 )
 
@@ -57,18 +55,14 @@ func NewServer(toolHandler ToolCallHandler) *Server {
 	return &Server{
 		tools: []Tool{
 			{
-				Name:        "ListNewContributors",
-				Description: "List open pull requests from new or low-contribution authors",
-				InputSchema: json.RawMessage(`{
-					"type": "object",
-					"properties": {
-						"min_contributions": {
-							"description": "Minimum number of merged PRs to not be considered a new contributor (default: 1)",
-							"type": "integer",
-							"default": 1
-						}
-					}
-				}`),
+				Name:        "list-repos",
+				Description: "List repositories (current or provided)",
+				InputSchema: json.RawMessage(`{"type":"object","properties":{}}`),
+			},
+			{
+				Name:        "list-sloppers",
+				Description: "List open pull requests from new or low-contribution authors (sloppers)",
+				InputSchema: json.RawMessage(`{"type":"object","properties":{"repositories":{"description":"List of repositories to check (owner/repo format). If not provided, uses the current repository.","type":"array","items":{"type":"string"}},"min_contributions":{"description":"Minimum number of merged PRs to not be considered a new contributor (default: 1)","type":"integer","default":1}}}`),
 			},
 		},
 		toolHandler: toolHandler,
@@ -80,68 +74,174 @@ func (s *Server) ServeStdio() error {
 }
 
 func (s *Server) ServeConn(r io.Reader, w io.Writer) error {
-	scanner := bufio.NewScanner(r)
-	var mu sync.Mutex
+	decoder := json.NewDecoder(r)
+	encoder := json.NewEncoder(w)
 
-	for scanner.Scan() {
-		var req Request
-		if err := json.Unmarshal(scanner.Bytes(), &req); err != nil {
-			continue
-		}
-
-		var resp Response
-		resp.JSONRPC = "2.0"
-		resp.ID = req.ID
-
-		switch req.Method {
-		case "initialize":
-			resp.Result = InitializeResult{
-				ProtocolVersion: "2024-11-05",
-				Capabilities:    map[string]interface{}{"tools": map[string]interface{}{}},
-				ServerInfo: struct {
-					Name    string `json:"name"`
-					Version string `json:"version"`
-				}{
-					Name:    "gh-slop",
-					Version: "0.0.0",
-				},
+	for {
+		var message json.RawMessage
+		if err := decoder.Decode(&message); err != nil {
+			if errors.Is(err, io.EOF) {
+				return nil
 			}
-		case "notifications/initialized":
-			continue
-		case "tools/list":
-			resp.Result = map[string]interface{}{"tools": s.tools}
-		case "tools/call":
-			resp.Result, resp.Error = s.toolHandler(req.Params)
-		default:
-			resp.Error = &Error{Code: -32601, Message: "Method not found"}
+			return err
 		}
 
-		mu.Lock()
-		data, _ := json.Marshal(resp)
-		fmt.Fprintln(w, string(data))
-		mu.Unlock()
+		result, err := s.processMessage(message)
+		if err != nil {
+			return err
+		}
+		if result != nil {
+			if err := encoder.Encode(result); err != nil {
+				return err
+			}
+		}
 	}
-
-	return scanner.Err()
 }
 
-func ListNewContributorsHandler(params json.RawMessage) (any, *Error) {
+func (s *Server) processMessage(message json.RawMessage) (any, error) {
+	switch firstNonSpace(message) {
+	case '[':
+		var requests []Request
+		if err := json.Unmarshal(message, &requests); err != nil {
+			return nil, err
+		}
+		responses := make([]Response, 0, len(requests))
+		for _, request := range requests {
+			response, ok := s.handleRequest(request)
+			if ok {
+				responses = append(responses, response)
+			}
+		}
+		if len(responses) == 0 {
+			return nil, nil
+		}
+		return responses, nil
+	default:
+		var request Request
+		if err := json.Unmarshal(message, &request); err != nil {
+			return nil, err
+		}
+		response, ok := s.handleRequest(request)
+		if !ok {
+			return nil, nil
+		}
+		return response, nil
+	}
+}
+
+func firstNonSpace(message []byte) byte {
+	for _, b := range message {
+		switch b {
+		case ' ', '\n', '\r', '\t':
+			continue
+		default:
+			return b
+		}
+	}
+	return 0
+}
+
+func (s *Server) handleRequest(request Request) (Response, bool) {
+	if len(request.ID) == 0 {
+		return Response{}, false
+	}
+
+	var resp Response
+	resp.JSONRPC = "2.0"
+	resp.ID = request.ID
+
+	switch request.Method {
+	case "initialize":
+		resp.Result = InitializeResult{
+			ProtocolVersion: "2024-11-05",
+			Capabilities:    map[string]any{"tools": map[string]any{}},
+			ServerInfo: struct {
+				Name    string `json:"name"`
+				Version string `json:"version"`
+			}{
+				Name:    "gh-slop",
+				Version: "0.0.0",
+			},
+		}
+	case "tools/list":
+		resp.Result = map[string]any{"tools": s.tools}
+	case "tools/call":
+		resp.Result, resp.Error = s.toolHandler(request.Params)
+	default:
+		resp.Error = &Error{Code: -32601, Message: "Method not found"}
+	}
+
+	return resp, true
+}
+
+func ToolHandler(params json.RawMessage) (any, *Error) {
 	var args struct {
 		Name string `json:"name"`
-		Arguments struct {
-			MinContributions int `json:"min_contributions"`
-		} `json:"arguments,omitempty"`
 	}
 
 	if err := json.Unmarshal(params, &args); err != nil {
 		return nil, &Error{Code: -32602, Message: "Invalid params"}
 	}
 
-	if args.Name != "ListNewContributors" {
+	switch args.Name {
+	case "list-repos":
+		return ListReposHandler(params)
+	case "list-sloppers":
+		return ListSloppersHandler(params)
+	default:
+		return nil, &Error{Code: -32602, Message: "Unknown tool: " + args.Name}
+	}
+}
+
+func ListReposHandler(params json.RawMessage) (any, *Error) {
+	var args struct {
+		Name      string   `json:"name"`
+		Arguments struct{} `json:"arguments"`
+	}
+
+	if err := json.Unmarshal(params, &args); err != nil {
+		return nil, &Error{Code: -32602, Message: "Invalid params"}
+	}
+
+	if args.Name != "list-repos" {
 		return nil, &Error{Code: -32602, Message: "Unknown tool: " + args.Name}
 	}
 
-	repos, err := actions.ResolveRepos(nil)
+	repos, err := slop.AccessibleRepos()
+	if err != nil {
+		return nil, &Error{Code: -32603, Message: err.Error()}
+	}
+
+	var out string
+	for _, r := range repos {
+		out += fmt.Sprintf("%s/%s\n", r.Owner, r.Name)
+	}
+
+	return map[string]interface{}{
+		"content": []map[string]interface{}{
+			{"type": "text", "text": out},
+		},
+	}, nil
+}
+
+func ListSloppersHandler(params json.RawMessage) (any, *Error) {
+	var args struct {
+		Name      string `json:"name"`
+		Arguments struct {
+			Repositories     []string `json:"repositories"`
+			MinContributions int      `json:"min_contributions"`
+		} `json:"arguments"`
+	}
+
+	if err := json.Unmarshal(params, &args); err != nil {
+		return nil, &Error{Code: -32602, Message: "Invalid params"}
+	}
+
+	if args.Name != "list-sloppers" {
+		return nil, &Error{Code: -32602, Message: "Unknown tool: " + args.Name}
+	}
+
+	repos, err := slop.ResolveRepos(args.Arguments.Repositories)
 	if err != nil {
 		return nil, &Error{Code: -32603, Message: err.Error()}
 	}

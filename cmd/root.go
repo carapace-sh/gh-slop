@@ -5,6 +5,8 @@ import (
 	spec "github.com/carapace-sh/carapace-spec"
 	"github.com/cli/go-gh/v2/pkg/repository"
 	"github.com/rsteube/gh-slop/pkg/actions"
+	"github.com/rsteube/gh-slop/pkg/crush"
+	"github.com/rsteube/gh-slop/pkg/slop"
 	"github.com/spf13/cobra"
 )
 
@@ -13,10 +15,13 @@ var repos []string
 var rootCmd = &cobra.Command{
 	Use:   "gh-slop",
 	Short: "A gh extension to handle slop contributions",
+	Args:  cobra.NoArgs,
 	CompletionOptions: cobra.CompletionOptions{
 		DisableDefaultCmd: true,
 	},
-	Run: func(cmd *cobra.Command, args []string) {},
+	RunE: func(cmd *cobra.Command, args []string) error {
+		return crush.Run(cmd.Context())
+	},
 }
 
 func init() {
@@ -33,7 +38,7 @@ func init() {
 }
 
 func ResolveRepos() ([]repository.Repository, error) {
-	return actions.ResolveRepos(repos)
+	return slop.ResolveRepos(repos)
 }
 
 func Execute() error {

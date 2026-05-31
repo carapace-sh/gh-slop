@@ -25,8 +25,8 @@ func ListNewContributors(repos []repository.Repository, minContributions int) ([
 
 	type result struct {
 		repo string
-		prs []PullRequest
-		err error
+		prs  []PullRequest
+		err  error
 	}
 
 	sem := make(chan struct{}, 5)
@@ -190,7 +190,7 @@ func fetchPullRequests(client graphqlDoer, r repository.Repository) ([]PullReque
 							Number    int    `json:"number"`
 							Title     string `json:"title"`
 							CreatedAt string `json:"createdAt"`
-							Author struct {
+							Author    struct {
 								Login string `json:"login"`
 							} `json:"author"`
 						} `json:"node"`
