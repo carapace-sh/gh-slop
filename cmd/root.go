@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"fmt"
-
 	"github.com/carapace-sh/carapace"
 	spec "github.com/carapace-sh/carapace-spec"
 	"github.com/cli/go-gh/v2/pkg/api"
@@ -11,7 +10,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var repo string
+var repos []string
 
 var rootCmd = &cobra.Command{
 	Use:   "gh-slop",
@@ -36,22 +35,34 @@ var rootCmd = &cobra.Command{
 }
 
 func init() {
-	rootCmd.PersistentFlags().StringVarP(&repo, "repo", "R", "", "Select another repository using the [HOST/]OWNER/REPO format")
+	rootCmd.PersistentFlags().StringSliceVarP(&repos, "repo", "R", nil, "Select another repository using the [HOST/]OWNER/REPO format (comma-separated for multiple)")
 
 	carapace.Gen(rootCmd)
 	carapace.Gen(rootCmd).FlagCompletion(carapace.ActionMap{
-		"repo": actions.ActionRepos().MultiParts("/"),
+		"repo": actions.ActionRepos().MultiParts("/").UniqueList(","),
 	})
 
 	spec.AddMacro("Repos", spec.MacroN(actions.ActionRepos))
 	spec.Register(rootCmd)
 }
 
-func resolveRepo() (repository.Repository, error) {
-	if repo != "" {
-		return repository.Parse(repo)
+func resolveRepos() ([]repository.Repository, error) {
+	if len(repos) > 0 {
+		result := make([]repository.Repository, 0, len(repos))
+		for _, r := range repos {
+			parsed, err := repository.Parse(r)
+			if err != nil {
+				return nil, fmt.Errorf("failed to parse repo %q: %w", r, err)
+			}
+			result = append(result, parsed)
+		}
+		return result, nil
 	}
-	return repository.Current()
+	current, err := repository.Current()
+	if err != nil {
+		return nil, err
+	}
+	return []repository.Repository{current}, nil
 }
 
 func Execute() error {
