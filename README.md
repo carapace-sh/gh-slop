@@ -53,24 +53,6 @@ Patterns that are specific to a particular org, tool, or repo should **not** go 
 
 These project-specific skills contain org-specific signals, known offender classifications, extra analysis steps, and concrete examples. The `slop-detect` skill automatically loads any matching `slop-patterns-*` skill when triggered for a relevant project.
 
-## CLI Commands
-
-```
-gh slop                    # Launch Crush with gh-slop MCP + slop-detect skill
-gh slop list               # List PRs from new/low-contribution authors
-gh slop list -m 3          # Only show authors with fewer than 3 merged PRs
-gh slop -R owner/repo list # Target a specific repository
-gh slop detect             # Detect slop using Crush AI analysis
-gh slop mcp                # Start the MCP stdio server (hidden)
-```
-
-### Flags
-
-| Flag | Short | Scope | Description |
-|------|-------|-------|-------------|
-| `--repo` | `-R` | global | Select repository in `[HOST/]OWNER/REPO` format (comma-separated for multiple) |
-| `--min-contributions` | `-m` | list | Minimum merged PRs for a contributor to be filtered out (default: 1) |
-
 ## Macro Export
 
 `gh-slop` exports two [carapace] macros via `carapace-spec`, making its completion actions available in YAML user specs:
