@@ -71,7 +71,7 @@ func NewServer(toolHandler ToolCallHandler) *Server {
 				InputSchema: json.RawMessage(`{"type":"object","properties":{"sloppers":{"description":"List of GitHub usernames to profile","type":"array","items":{"type":"string"}}},"required":["sloppers"]}`),
 			},
 			{
-				Name:        "slop-prs",
+				Name:        "view-prs",
 				Description: "Fetch details (title, body, author, createdAt, URL) for a list of PRs in a single optimized batch call, instead of making individual requests per PR",
 				InputSchema: json.RawMessage(`{"type":"object","properties":{"prs":{"description":"List of PR references in OWNER/REPO#NUMBER format (e.g. [\"cli/cli#1234\", \"owner/repo#567\"])","type":"array","items":{"type":"string"}}},"required":["prs"]}`),
 			},
@@ -201,7 +201,7 @@ func ToolHandler(params json.RawMessage) (any, *Error) {
 		return ListSloppersHandler(params)
 	case "profile-sloppers":
 		return ProfileSloppersHandler(params)
-	case "slop-prs":
+	case "view-prs":
 		return SlopPRsHandler(params)
 	default:
 		return nil, &Error{Code: -32602, Message: "Unknown tool: " + args.Name}
@@ -347,7 +347,7 @@ func SlopPRsHandler(params json.RawMessage) (any, *Error) {
 		return nil, &Error{Code: -32602, Message: "Invalid params"}
 	}
 
-	if args.Name != "slop-prs" {
+	if args.Name != "view-prs" {
 		return nil, &Error{Code: -32602, Message: "Unknown tool: " + args.Name}
 	}
 
