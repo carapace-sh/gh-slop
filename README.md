@@ -21,8 +21,6 @@ The extension provides a stdio-based [MCP] server (`gh slop mcp`) with four tool
 | `profile-sloppers` | Fetches detailed GitHub profiles for given usernames (account age, commit count, PR distribution, merge rate, recent PRs) |
 | `slop-prs` | Fetches title, body, author, and metadata for a list of PRs in `OWNER/REPO#NUMBER` format |
 
-The server is hand-rolled JSON-RPC 2.0 over stdio — no SDK dependency.
-
 ### Slop Detection Skill
 
 The embedded `slop-detect` skill teaches Crush how to analyze slop. It provides a structured workflow:
@@ -44,14 +42,6 @@ The `slop-detect` skill evolves over time as new slop patterns emerge. To update
 3. Crush includes a built-in skill (`crush-config`) that can update skill files — use it to incorporate the new patterns into `slop-detect`
 
 Patterns that are specific to a particular org, tool, or repo should **not** go into the general `slop-detect` skill. Instead, they belong in separate `slop-patterns-*` skill files:
-
-| Skill | Scope |
-|-------|-------|
-| `slop-patterns-carapace` | carapace-sh specific patterns (completer racing, template spraying) |
-| `slop-patterns-awesome` | awesome-list specific patterns (self-promo spam) |
-| `slop-patterns-rust` | Rust ecosystem specific patterns |
-
-These project-specific skills contain org-specific signals, known offender classifications, extra analysis steps, and concrete examples. The `slop-detect` skill automatically loads any matching `slop-patterns-*` skill when triggered for a relevant project.
 
 ## Macro Export
 
