@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strings"
 
 	"github.com/rsteube/gh-slop/pkg/slop"
 )
@@ -63,6 +64,11 @@ func NewServer(toolHandler ToolCallHandler) *Server {
 				Name:        "list-sloppers",
 				Description: "List open pull requests from new or low-contribution authors (sloppers)",
 				InputSchema: json.RawMessage(`{"type":"object","properties":{"repositories":{"description":"List of repositories to check (owner/repo format). If not provided, uses the current repository.","type":"array","items":{"type":"string"}},"min_contributions":{"description":"Minimum number of merged PRs to not be considered a new contributor (default: 1)","type":"integer","default":1}}}`),
+			},
+			{
+				Name:        "profile-sloppers",
+				Description: "Fetch detailed GitHub profiles for multiple authors in a single batch call, returning account age, commit count, PR distribution, merge rate, and recent PRs",
+				InputSchema: json.RawMessage(`{"type":"object","properties":{"sloppers":{"description":"List of GitHub usernames to profile","type":"array","items":{"type":"string"}}},"required":["sloppers"]}`),
 			},
 		},
 		toolHandler: toolHandler,
@@ -188,6 +194,8 @@ func ToolHandler(params json.RawMessage) (any, *Error) {
 		return ListReposHandler(params)
 	case "list-sloppers":
 		return ListSloppersHandler(params)
+	case "profile-sloppers":
+		return ProfileSloppersHandler(params)
 	default:
 		return nil, &Error{Code: -32602, Message: "Unknown tool: " + args.Name}
 	}
@@ -261,6 +269,63 @@ func ListSloppersHandler(params json.RawMessage) (any, *Error) {
 			{"type": "text", "text": formatPRs(prs)},
 		},
 	}, nil
+}
+
+func ProfileSloppersHandler(params json.RawMessage) (any, *Error) {
+	var args struct {
+		Name      string `json:"name"`
+		Arguments struct {
+			Sloppers []string `json:"sloppers"`
+		} `json:"arguments"`
+	}
+
+	if err := json.Unmarshal(params, &args); err != nil {
+		return nil, &Error{Code: -32602, Message: "Invalid params"}
+	}
+
+	if args.Name != "profile-sloppers" {
+		return nil, &Error{Code: -32602, Message: "Unknown tool: " + args.Name}
+	}
+
+	if len(args.Arguments.Sloppers) == 0 {
+		return nil, &Error{Code: -32602, Message: "sloppers is required"}
+	}
+
+	profiles, err := slop.FetchUserProfiles(args.Arguments.Sloppers)
+	if err != nil {
+		return nil, &Error{Code: -32603, Message: err.Error()}
+	}
+
+	return map[string]interface{}{
+		"content": []map[string]interface{}{
+			{"type": "text", "text": formatProfiles(profiles)},
+		},
+	}, nil
+}
+
+func formatProfiles(profiles []slop.UserProfile) string {
+	var b strings.Builder
+	for i, p := range profiles {
+		if i > 0 {
+			b.WriteString("\n")
+		}
+		mergeRate := 0
+		if p.TotalPRs > 0 {
+			mergeRate = p.MergedPRs * 100 / p.TotalPRs
+		}
+		fmt.Fprintf(&b, "## @%s\n", p.Login)
+		fmt.Fprintf(&b, "Account created: %s\n", p.CreatedAt.Format("2006-01-02"))
+		fmt.Fprintf(&b, "Total commits: %d\n", p.TotalCommits)
+		fmt.Fprintf(&b, "Total PRs: %d (merged: %d, open: %d, closed: %d) — %d%% merge rate\n", p.TotalPRs, p.MergedPRs, p.OpenPRs, p.ClosedPRs, mergeRate)
+		fmt.Fprintf(&b, "Repos targeted: %d\n", p.TotalReposTargeted)
+		if len(p.PRs) > 0 {
+			b.WriteString("Recent PRs:\n")
+			for _, pr := range p.PRs {
+				fmt.Fprintf(&b, "  - [%s] %s (%s)\n", pr.State, pr.Title, pr.Repo)
+			}
+		}
+	}
+	return b.String()
 }
 
 func formatPRs(prs []slop.PRWithRepo) string {

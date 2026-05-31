@@ -37,37 +37,32 @@ Call `mcp_gh-slop_list-repos` to get the user's writable repositories. Group the
 
 Call `mcp_gh-slop_list-sloppers` with the desired repositories and `min_contributions` threshold. When the user names an org or project, pass all repos matching that org prefix. When no repo is specified, use the current repository or ask the user which repos to target.
 
+### `mcp_gh-slop_profile-sloppers`
+
+Fetches detailed GitHub profiles for multiple sloppers in a single batch call. Returns account age, total commits, PR counts (merged/open/closed), merge rate, repos targeted, and recent PRs with their states and repos. Use this instead of making individual `gh api graphql` calls per user — it batches all requests concurrently.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `sloppers` | `array<string>` | yes | List of GitHub usernames to profile |
+
 ### Step 3: Deep analysis — Profile each author
 
-For each unique author returned, use the GitHub GraphQL API to gather:
+Call `mcp_gh-slop_profile-sloppers` once with all unique authors from the `list-sloppers` results. This fetches all profiles concurrently in a single call rather than making individual GraphQL requests per user.
 
-```
-gh api graphql -f query='
-query {
-  user(login: "USERNAME") {
-    createdAt
-    contributionsCollection {
-      totalCommitContributions
-    }
-    pullRequests(first: 50, orderBy: {field: CREATED_AT, direction: DESC}) {
-      totalCount
-      nodes {
-        repository { nameWithOwner }
-        title
-        createdAt
-        state
-      }
-    }
-  }
-}'
-```
+The tool returns for each author:
+- **Login** — GitHub username
+- **Account created** — Account creation date (new accounts < 6 months are a slop signal)
+- **Total commits** — `totalCommitContributions`. Accounts with < 50 total commits and many PRs across many repos are likely slop
+- **Total PRs** — Breakdown of merged/open/closed counts and merge rate percentage
+- **Repos targeted** — Number of distinct repos they've filed PRs against
+- **Recent PRs** — Last 50 PRs with state, title, and target repo
 
-Extract the following signals for each author:
+From this data, extract the following slop signals:
 
-1. **Account age** — `createdAt` date. Very new accounts (< 6 months) are a strong slop signal.
-2. **Total commits** — `totalCommitContributions`. Accounts with < 50 total commits and many PRs across many repos are likely slop.
+1. **Account age** — Very new accounts (< 6 months) are a strong slop signal.
+2. **Total commits** — Accounts with < 50 total commits and many PRs across many repos are likely slop.
 3. **PR distribution** — How many different repos they target. Legitimate contributors focus on few repos; slop authors spray across many unrelated repos.
-4. **PR success rate** — Ratio of MERGED to total PRs. Slop authors have very low merge rates (mostly OPEN or CLOSED).
+4. **PR success rate** — Ratio of merged to total PRs. Slop authors have very low merge rates (mostly OPEN or CLOSED).
 5. **Burst pattern** — How many PRs filed per day. Filing 5+ PRs across different repos in a single day is a strong slop signal.
 6. **Repo overlap with other slop authors** — Whether they target the same repos as other flagged authors, especially within the same time window.
 
@@ -171,15 +166,15 @@ Summarize findings as:
 
 | Signal | Weight | How to detect |
 |--------|--------|---------------|
-| Account age < 6 months | High | Check `createdAt` from GraphQL |
+| Account age < 6 months | High | Check account created date from `profile-sloppers` |
 | Burst pattern (5+ PRs/day) | High | Group PRs by date, count per day |
-| Low merge rate (< 20%) | High | Count MERGED vs total from PR states |
-| PRs across 5+ unrelated repos | Medium | Count unique repos from PR list |
+| Low merge rate (< 20%) | High | Merge rate percentage from `profile-sloppers` |
+| PRs across 5+ unrelated repos | Medium | Repos targeted count from `profile-sloppers` |
 | Bounty repo targeting | Medium | Check if repos have "fund"/"bounty" labels |
 | AI agent markers in PRs | High | Search body for "Floyd", "[codex]", "/claim" |
 | Coordinated with other flagged authors | High | Check repo overlap + timing overlap |
 | Self-promotion pattern | Medium | Same content across many "awesome-*" repos |
-| Very low total commits (< 50) | Medium | `totalCommitContributions` from GraphQL |
+| Very low total commits (< 50) | Medium | Total commits from `profile-sloppers` |
 
 ### PR-level signals
 
