@@ -15,7 +15,7 @@ var listCmd = &cobra.Command{
 	Use:   "list",
 	Short: "List pull requests from new contributors",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		repos, err := resolveRepos()
+		repos, err := ResolveRepos()
 		if err != nil {
 			return err
 		}
