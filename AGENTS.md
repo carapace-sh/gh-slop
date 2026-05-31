@@ -35,6 +35,7 @@ cmd/list.go            → `list` subcommand, renders PRs via pkg/render
 cmd/mcp.go             → `mcp` subcommand (hidden), starts MCP stdio server
 pkg/slop/slop.go       → core logic: fetch PRs, fetch contribution counts, filter new contributors
 pkg/slop/profile.go   → batch user profile fetching (account age, commits, PR stats) via GraphQL
+pkg/slop/prdetails.go → batch PR detail fetching (title, body, author, createdAt, URL) via GraphQL aliased queries
 pkg/slop/repos.go      → ResolveRepos() (flag→Repository parsing), AccessibleRepos() (REST API for user's writable repos)
 pkg/render/render.go   → terminal output: groups by author, time-cluster coloring, lipgloss styling
 pkg/mcp/server.go      → hand-rolled MCP stdio server (JSON-RPC 2.0 with Content-Length framing)
@@ -52,10 +53,11 @@ pkg/crush/crush.json    → embedded config: registers gh-slop as MCP server for
 
 **Multi-repo flow**: The `--repo`/`-R` flag accepts comma-separated repos (`StringSliceVarP`). `ListNewContributors` processes all repos concurrently (also semaphore-limited to 5). When multiple repos are targeted, each PR is prefixed with `owner/repo#` in output.
 
-**MCP server**: `cmd/mcp.go` exposes three tools over stdio JSON-RPC:
+**MCP server**: `cmd/mcp.go` exposes four tools over stdio JSON-RPC:
 - `list-repos` — returns user's writable repositories
 - `list-sloppers` — returns PRs from new contributors (accepts `repositories` and `min_contributions` args)
 - `profile-sloppers` — batch-fetches GitHub user profiles for deep slop analysis (accepts `sloppers` list)
+- `slop-prs` — batch-fetches PR details (title, body, author, createdAt, URL) for a list of PRs in `OWNER/REPO#NUMBER` format, using aliased GraphQL queries per repo
 
 **Crush integration**: Running `gh slop` without a subcommand deploys an embedded `crush.json` config (which registers the MCP server) to `$XDG_CONFIG_HOME/gh-slop/crush/` and launches the `crush` CLI binary.
 

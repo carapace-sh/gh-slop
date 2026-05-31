@@ -70,6 +70,11 @@ func NewServer(toolHandler ToolCallHandler) *Server {
 				Description: "Fetch detailed GitHub profiles for multiple authors in a single batch call, returning account age, commit count, PR distribution, merge rate, and recent PRs",
 				InputSchema: json.RawMessage(`{"type":"object","properties":{"sloppers":{"description":"List of GitHub usernames to profile","type":"array","items":{"type":"string"}}},"required":["sloppers"]}`),
 			},
+			{
+				Name:        "slop-prs",
+				Description: "Fetch details (title, body, author, createdAt, URL) for a list of PRs in a single optimized batch call, instead of making individual requests per PR",
+				InputSchema: json.RawMessage(`{"type":"object","properties":{"prs":{"description":"List of PR references in OWNER/REPO#NUMBER format (e.g. [\"cli/cli#1234\", \"owner/repo#567\"])","type":"array","items":{"type":"string"}}},"required":["prs"]}`),
+			},
 		},
 		toolHandler: toolHandler,
 	}
@@ -196,6 +201,8 @@ func ToolHandler(params json.RawMessage) (any, *Error) {
 		return ListSloppersHandler(params)
 	case "profile-sloppers":
 		return ProfileSloppersHandler(params)
+	case "slop-prs":
+		return SlopPRsHandler(params)
 	default:
 		return nil, &Error{Code: -32602, Message: "Unknown tool: " + args.Name}
 	}
@@ -323,6 +330,58 @@ func formatProfiles(profiles []slop.UserProfile) string {
 			for _, pr := range p.PRs {
 				fmt.Fprintf(&b, "  - [%s] %s (%s)\n", pr.State, pr.Title, pr.Repo)
 			}
+		}
+	}
+	return b.String()
+}
+
+func SlopPRsHandler(params json.RawMessage) (any, *Error) {
+	var args struct {
+		Name      string `json:"name"`
+		Arguments struct {
+			PRs []string `json:"prs"`
+		} `json:"arguments"`
+	}
+
+	if err := json.Unmarshal(params, &args); err != nil {
+		return nil, &Error{Code: -32602, Message: "Invalid params"}
+	}
+
+	if args.Name != "slop-prs" {
+		return nil, &Error{Code: -32602, Message: "Unknown tool: " + args.Name}
+	}
+
+	if len(args.Arguments.PRs) == 0 {
+		return nil, &Error{Code: -32602, Message: "prs is required"}
+	}
+
+	details, err := slop.FetchPRDetails(args.Arguments.PRs)
+	if err != nil {
+		return nil, &Error{Code: -32603, Message: err.Error()}
+	}
+
+	return map[string]any{
+		"content": []map[string]any{
+			{"type": "text", "text": formatPRDetails(details)},
+		},
+	}, nil
+}
+
+func formatPRDetails(details []slop.PRDetail) string {
+	var b strings.Builder
+	for i, d := range details {
+		if i > 0 {
+			b.WriteString("\n")
+		}
+		fmt.Fprintf(&b, "## %s#%d\n", d.Repo, d.Number)
+		fmt.Fprintf(&b, "Title: %s\n", d.Title)
+		fmt.Fprintf(&b, "Author: @%s\n", d.Author)
+		fmt.Fprintf(&b, "Created: %s\n", d.CreatedAt)
+		fmt.Fprintf(&b, "URL: %s\n", d.URL)
+		if d.Body != "" {
+			b.WriteString("---\n")
+			b.WriteString(d.Body)
+			b.WriteString("\n")
 		}
 	}
 	return b.String()
