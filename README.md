@@ -4,6 +4,12 @@ Experimental [GitHub CLI] extension that leverages [Crush] to handle slop contri
 
 [![asciicast](https://asciinema.org/a/1168742.svg)](https://asciinema.org/a/1168742)
 
+> `gh-slop` needs to be be in your `PATH` (either symlinking or updating the path)
+> ```sh
+> ln -s ~/.local/share/gh/extensions/gh-slop/gh-slop ~/.local/bin/ # depends on os and config
+> carapace --choice gh-slop/carapace@bridge
+> ```
+
 ## Core Concepts
 
 ### Crush Integration
