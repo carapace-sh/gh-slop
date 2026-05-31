@@ -53,6 +53,14 @@ Fetches title, body, author, createdAt, and URL for a list of PRs in a single op
 |-----------|------|----------|-------------|
 | `prs` | `array<string>` | yes | List of PR references in `OWNER/REPO#NUMBER` format (e.g. `["cli/cli#1234", "owner/repo#567"]`) |
 
+### `mcp_gh-slop_close-prs`
+
+Closes pull requests by reference. **Destructive action — must only be invoked with the user's explicit authorization.** Never call this tool on the user's behalf without confirming first. Returns the new state of each PR after attempting to close it.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `prs` | `array<string>` | yes | List of PR references in `OWNER/REPO#NUMBER` format (e.g. `["cli/cli#1234", "owner/repo#567"]`) |
+
 ### Step 3: Deep analysis — Profile each author
 
 Call `mcp_gh-slop_profile-sloppers` once with all unique authors from the `list-sloppers` results. This fetches all profiles concurrently in a single call rather than making individual GraphQL requests per user.
@@ -169,6 +177,8 @@ Summarize findings as:
 3. **Pattern breakdown** — Group PRs by pattern type with specific examples
 4. **Duplicate PR map** — Table of issues/features with multiple competing PRs, showing which PR was first and which are duplicates
 5. **Recommendations** — Which PRs to close, which authors to watch, suggested `min_contributions` threshold adjustment
+
+When the user explicitly asks to close PRs, use `mcp_gh-slop_close-prs` with the identified slop PRs. **Always confirm with the user before closing any PRs** — this is a destructive action that cannot be undone. Present the list of PRs to be closed and get explicit approval before calling the tool.
 
 ## Slop Signals Reference
 

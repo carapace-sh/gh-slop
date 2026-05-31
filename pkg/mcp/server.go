@@ -75,6 +75,11 @@ func NewServer(toolHandler ToolCallHandler) *Server {
 				Description: "Fetch details (title, body, author, createdAt, URL) for a list of PRs in a single optimized batch call, instead of making individual requests per PR",
 				InputSchema: json.RawMessage(`{"type":"object","properties":{"prs":{"description":"List of PR references in OWNER/REPO#NUMBER format (e.g. [\"cli/cli#1234\", \"owner/repo#567\"])","type":"array","items":{"type":"string"}}},"required":["prs"]}`),
 			},
+			{
+				Name:        "close-prs",
+				Description: "Close pull requests by PR reference, returning the new state of each PR after closing",
+				InputSchema: json.RawMessage(`{"type":"object","properties":{"prs":{"description":"List of PR references in OWNER/REPO#NUMBER format (e.g. [\"cli/cli#1234\", \"owner/repo#567\"])","type":"array","items":{"type":"string"}}},"required":["prs"]}`),
+			},
 		},
 		toolHandler: toolHandler,
 	}
@@ -203,6 +208,8 @@ func ToolHandler(params json.RawMessage) (any, *Error) {
 		return ProfileSloppersHandler(params)
 	case "view-prs":
 		return SlopPRsHandler(params)
+	case "close-prs":
+		return ClosePRsHandler(params)
 	default:
 		return nil, &Error{Code: -32602, Message: "Unknown tool: " + args.Name}
 	}
@@ -383,6 +390,49 @@ func formatPRDetails(details []slop.PRDetail) string {
 			b.WriteString(d.Body)
 			b.WriteString("\n")
 		}
+	}
+	return b.String()
+}
+
+func ClosePRsHandler(params json.RawMessage) (any, *Error) {
+	var args struct {
+		Name      string `json:"name"`
+		Arguments struct {
+			PRs []string `json:"prs"`
+		} `json:"arguments"`
+	}
+
+	if err := json.Unmarshal(params, &args); err != nil {
+		return nil, &Error{Code: -32602, Message: "Invalid params"}
+	}
+
+	if args.Name != "close-prs" {
+		return nil, &Error{Code: -32602, Message: "Unknown tool: " + args.Name}
+	}
+
+	if len(args.Arguments.PRs) == 0 {
+		return nil, &Error{Code: -32602, Message: "prs is required"}
+	}
+
+	results, err := slop.ClosePRs(args.Arguments.PRs)
+	if err != nil {
+		return nil, &Error{Code: -32603, Message: err.Error()}
+	}
+
+	return map[string]any{
+		"content": []map[string]any{
+			{"type": "text", "text": formatClosedPRs(results)},
+		},
+	}, nil
+}
+
+func formatClosedPRs(results []slop.ClosedPR) string {
+	var b strings.Builder
+	for i, r := range results {
+		if i > 0 {
+			b.WriteString("\n")
+		}
+		fmt.Fprintf(&b, "%s#%d: %s", r.Repo, r.Number, r.State)
 	}
 	return b.String()
 }
