@@ -45,7 +45,7 @@ Fetches detailed GitHub profiles for multiple sloppers in a single batch call. R
 |-----------|------|----------|-------------|
 | `sloppers` | `array<string>` | yes | List of GitHub usernames to profile |
 
-### `mcp_gh-slop_slop-prs`
+### `mcp_gh-slop_view-prs`
 
 Fetches title, body, author, createdAt, and URL for a list of PRs in a single optimized batch call. Use this instead of making individual `gh pr view` calls per PR — it groups PRs by repo and fetches all PRs for each repo in one GraphQL request.
 
@@ -76,7 +76,7 @@ From this data, extract the following slop signals:
 
 ### Step 4: Deep analysis — Classify each PR
 
-Call `mcp_gh-slop_slop-prs` once with all PR references from the `list-sloppers` results (in `OWNER/REPO#NUMBER` format) to fetch title, body, author, createdAt, and URL for every PR in a single batch. Use this instead of making individual `gh pr view` calls — it groups PRs by repo and fetches all details in one GraphQL request per repo.
+Call `mcp_gh-slop_view-prs` once with all PR references from the `list-sloppers` results (in `OWNER/REPO#NUMBER` format) to fetch title, body, author, createdAt, and URL for every PR in a single batch. Use this instead of making individual `gh pr view` calls — it groups PRs by repo and fetches all details in one GraphQL request per repo.
 
 For each PR, check for these slop signals:
 

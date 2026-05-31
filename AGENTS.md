@@ -57,7 +57,7 @@ pkg/crush/crush.json    → embedded config: registers gh-slop as MCP server for
 - `list-repos` — returns user's writable repositories
 - `list-sloppers` — returns PRs from new contributors (accepts `repositories` and `min_contributions` args)
 - `profile-sloppers` — batch-fetches GitHub user profiles for deep slop analysis (accepts `sloppers` list)
-- `slop-prs` — batch-fetches PR details (title, body, author, createdAt, URL) for a list of PRs in `OWNER/REPO#NUMBER` format, using aliased GraphQL queries per repo
+- `view-prs` — batch-fetches PR details (title, body, author, createdAt, URL) for a list of PRs in `OWNER/REPO#NUMBER` format, using aliased GraphQL queries per repo
 
 **Crush integration**: Running `gh slop` without a subcommand deploys an embedded `crush.json` config (which registers the MCP server) to `$XDG_CONFIG_HOME/gh-slop/crush/` and launches the `crush` CLI binary.
 

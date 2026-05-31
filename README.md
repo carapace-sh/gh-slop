@@ -25,7 +25,7 @@ The extension provides a stdio-based [MCP] server (`gh slop mcp`) with four tool
 | `list-repos` | Lists the user's writable GitHub repositories |
 | `list-sloppers` | Lists open PRs from new/low-contribution authors |
 | `profile-sloppers` | Fetches detailed GitHub profiles for given usernames (account age, commit count, PR distribution, merge rate, recent PRs) |
-| `slop-prs` | Fetches title, body, author, and metadata for a list of PRs in `OWNER/REPO#NUMBER` format |
+| `view-prs` | Fetches title, body, author, and metadata for a list of PRs in `OWNER/REPO#NUMBER` format |
 
 ### Slop Detection Skill
 
@@ -34,7 +34,7 @@ The embedded `slop-detect` skill teaches Crush how to analyze slop. It provides 
 1. **Discover** repos via `list-repos`
 2. **Scan** for new contributors via `list-sloppers`
 3. **Profile** each author via `profile-sloppers` (batched)
-4. **Classify** each PR via `slop-prs` (batched) — checks for duplicates, AI agent markers, bounty claims, self-promo
+4. **Classify** each PR via `view-prs` (batched) — checks for duplicates, AI agent markers, bounty claims, self-promo
 5. **Identify patterns** — issue racing, burst spraying, coordinated accounts, AI agent slop, etc.
 6. **Classify authors** — slop, likely slop, not slop, AI-assisted but legitimate
 7. **Present results** — summary statistics, author table, pattern breakdown, recommendations
