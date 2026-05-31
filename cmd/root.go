@@ -1,12 +1,12 @@
 package cmd
 
 import (
-	"fmt"
-
 	"github.com/carapace-sh/carapace"
 	spec "github.com/carapace-sh/carapace-spec"
 	"github.com/cli/go-gh/v2/pkg/repository"
 	"github.com/rsteube/gh-slop/pkg/actions"
+	"github.com/rsteube/gh-slop/pkg/crush"
+	"github.com/rsteube/gh-slop/pkg/slop"
 	"github.com/spf13/cobra"
 )
 
@@ -18,7 +18,12 @@ var rootCmd = &cobra.Command{
 	CompletionOptions: cobra.CompletionOptions{
 		DisableDefaultCmd: true,
 	},
-	Run: func(cmd *cobra.Command, args []string) {},
+	RunE: func(cmd *cobra.Command, args []string) error {
+		if len(args) == 0 {
+			return crush.Run(cmd.Context())
+		}
+		return nil
+	},
 }
 
 func init() {
@@ -34,23 +39,8 @@ func init() {
 	spec.Register(rootCmd)
 }
 
-func resolveRepos() ([]repository.Repository, error) {
-	if len(repos) > 0 {
-		result := make([]repository.Repository, 0, len(repos))
-		for _, r := range repos {
-			parsed, err := repository.Parse(r)
-			if err != nil {
-				return nil, fmt.Errorf("failed to parse repo %q: %w", r, err)
-			}
-			result = append(result, parsed)
-		}
-		return result, nil
-	}
-	current, err := repository.Current()
-	if err != nil {
-		return nil, err
-	}
-	return []repository.Repository{current}, nil
+func ResolveRepos() ([]repository.Repository, error) {
+	return slop.Repos(repos)
 }
 
 func Execute() error {
