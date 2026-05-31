@@ -1,10 +1,18 @@
 # gh-slop
 
-Experimental [GitHub CLI] extension that leverages [Crush] to handle slop contributions and serves as playground for [Slopware].
+**Experimental** [GitHub CLI] extension that leverages [Crush] to handle slop contributions and serves as playground for [Slopware].
 
 [![asciicast](https://asciinema.org/a/1168742.svg)](https://asciinema.org/a/1168742)
 
-> `gh-slop` needs to be be in your `PATH` (either symlinking or updating the path)
+## Getting Started
+
+```sh
+gh extension install carapace-sh/gh-slop
+```
+
+> **temporary workaround** (only if you are using [Carapace](https://carapace.sh))
+>
+> For the completion to work `gh-slop` needs to be be in your `PATH` (either symlinking or updating the path)
 > ```sh
 > ln -s ~/.local/share/gh/extensions/gh-slop/gh-slop ~/.local/bin/ # depends on os and config
 > carapace --choice gh-slop/carapace@bridge
