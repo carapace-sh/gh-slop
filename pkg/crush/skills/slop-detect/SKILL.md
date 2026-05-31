@@ -45,6 +45,14 @@ Fetches detailed GitHub profiles for multiple sloppers in a single batch call. R
 |-----------|------|----------|-------------|
 | `sloppers` | `array<string>` | yes | List of GitHub usernames to profile |
 
+### `mcp_gh-slop_slop-prs`
+
+Fetches title, body, author, createdAt, and URL for a list of PRs in a single optimized batch call. Use this instead of making individual `gh pr view` calls per PR — it groups PRs by repo and fetches all PRs for each repo in one GraphQL request.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `prs` | `array<string>` | yes | List of PR references in `OWNER/REPO#NUMBER` format (e.g. `["cli/cli#1234", "owner/repo#567"]`) |
+
 ### Step 3: Deep analysis — Profile each author
 
 Call `mcp_gh-slop_profile-sloppers` once with all unique authors from the `list-sloppers` results. This fetches all profiles concurrently in a single call rather than making individual GraphQL requests per user.
@@ -68,11 +76,13 @@ From this data, extract the following slop signals:
 
 ### Step 4: Deep analysis — Classify each PR
 
+Call `mcp_gh-slop_slop-prs` once with all PR references from the `list-sloppers` results (in `OWNER/REPO#NUMBER` format) to fetch title, body, author, createdAt, and URL for every PR in a single batch. Use this instead of making individual `gh pr view` calls — it groups PRs by repo and fetches all details in one GraphQL request per repo.
+
 For each PR, check for these slop signals:
 
 #### Duplicate / overlapping PRs
 
-Use `gh pr view PR_NUMBER --repo OWNER/REPO --json title,body,author,createdAt` to compare PRs that:
+Compare PRs that:
 - Target the same issue (check for "Closes #", "Fixes #", "Refs #" in the body)
 - Implement the same feature (e.g., multiple "add zig completer" PRs)
 - Were filed within days of each other by different authors
