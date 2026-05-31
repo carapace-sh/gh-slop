@@ -216,6 +216,7 @@ When the `slop-detect` skill is triggered for a project that has a `slop-pattern
 
 ## Tips
 
+- Never add emojis to your output. Only use text formatting (tables, lists, headings). Emoji may appear as part of actual PR data (e.g., issue titles) but should never be added to your own response.
 - The `repositories` parameter is optional; omitting it scans the current repository only.
 - Pass multiple repos to scan across an organization.
 - Some repos returned by `list-repos` may be archived or renamed — errors are reported per-repo and can be safely retried without the failing repo.
