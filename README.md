@@ -2,8 +2,7 @@
 
 Experimental [GitHub CLI] extension that leverages [Crush] to handle slop contributions and serves as playground for [Slopware].
 
-[![asciicast](https://asciinema.org/a/1wvC4LrxDrtqs7oc.svg)](https://asciinema.org/a/1wvC4LrxDrtqs7oc)
-
+[![asciicast](https://asciinema.org/a/K5KkfMuTMmFRcqFy.svg)](https://asciinema.org/a/K5KkfMuTMmFRcqFy)
 
 [Crush]:https://github.com/charmbracelet/crush
 [GitHub CLI]:https://cli.github.com
