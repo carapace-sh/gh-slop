@@ -1,6 +1,6 @@
 # gh-slop
 
-Experimental [GitHub CLI] extension that leverages [Crush] and serves as playground for [Slopware].
+Experimental [GitHub CLI] extension that leverages [Crush] to handle slop contributions and serves as playground for [Slopware].
 
 [![asciicast](https://asciinema.org/a/1wvC4LrxDrtqs7oc.svg)](https://asciinema.org/a/1wvC4LrxDrtqs7oc)
 
