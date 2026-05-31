@@ -7,6 +7,9 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
+
+	"github.com/cli/go-gh/v2/pkg/repository"
 )
 
 const appName = "gh-slop"
@@ -57,6 +60,22 @@ func EnsureConfig() error {
 }
 
 func Run(ctx context.Context) error {
+	return runCrush(ctx, nil)
+}
+
+func RunDetect(ctx context.Context, repoList []string) error {
+	if len(repoList) == 0 {
+		repo, err := repository.Current()
+		if err != nil {
+			return fmt.Errorf("no repository specified and not in a git repo: %w", err)
+		}
+		repoList = []string{repo.Owner + "/" + repo.Name}
+	}
+	prompt := "detect slop in " + strings.Join(repoList, ", ")
+	return runCrush(ctx, []string{"run", prompt})
+}
+
+func runCrush(ctx context.Context, args []string) error {
 	if err := EnsureConfig(); err != nil {
 		return err
 	}
@@ -66,10 +85,9 @@ func Run(ctx context.Context) error {
 		return err
 	}
 
-	cmd := exec.CommandContext(ctx, "crush")
+	cmd := exec.CommandContext(ctx, "crush", args...)
 	cmd.Env = append(
 		os.Environ(),
-		// TODO add GH_REPO if currently in a repo (this needs to be acknowledged in slop)
 		fmt.Sprintf("CRUSH_GLOBAL_CONFIG=%s", crushDir),
 		fmt.Sprintf("CRUSH_SKILLS_DIR=%s", filepath.Join(crushDir, "skills")),
 	)
