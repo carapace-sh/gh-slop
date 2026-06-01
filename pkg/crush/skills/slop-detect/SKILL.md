@@ -61,6 +61,14 @@ Closes pull requests by reference. **Destructive action — must only be invoked
 |-----------|------|----------|-------------|
 | `prs` | `array<string>` | yes | List of PR references in `OWNER/REPO#NUMBER` format (e.g. `["cli/cli#1234", "owner/repo#567"]`) |
 
+### `mcp_gh-slop_view-issues`
+
+Fetches title, body, state, author, createdAt, updatedAt, and URL for a list of issues in a single batch call using the REST API. Use this instead of making individual `gh issue view` calls per issue — it fetches all issues concurrently.
+
+|| Parameter | Type | Required | Description |
+||-----------|------|----------|-------------|
+|| `issues` | `array<string>` | yes | List of issue references in `OWNER/REPO#NUMBER` format (e.g. `["cli/cli#1234", "owner/repo#567"]`) |
+
 ### Step 3: Deep analysis — Profile each author
 
 Call `mcp_gh-slop_profile-sloppers` once with all unique authors from the `list-sloppers` results. This fetches all profiles concurrently in a single call rather than making individual GraphQL requests per user.
