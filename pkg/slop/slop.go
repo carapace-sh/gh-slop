@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/cli/go-gh/v2/pkg/api"
+	"github.com/rsteube/gh-slop/pkg/slop/api"
 	"github.com/cli/go-gh/v2/pkg/repository"
 )
 
@@ -44,14 +44,28 @@ func FindPRsByAuthor(repos []repository.Repository, author string) ([]PRWithRepo
 			sem <- struct{}{}
 			defer func() { <-sem }()
 
-			client, err := api.NewGraphQLClient(api.ClientOptions{Host: r.Host})
+			client, err := api.NewGraphQLClient(r.Host)
 			if err != nil {
 				results <- result{repo: r.Owner + "/" + r.Name, err: fmt.Errorf("failed to create graphql client: %w", err)}
 				return
 			}
 
-			prs, err := findPullRequestsByAuthor(client, r, author)
-			results <- result{repo: r.Owner + "/" + r.Name, prs: prs, err: err}
+			nodes, err := api.FetchPullRequestsByAuthor(client, r.Owner, r.Name, author)
+			if err != nil {
+				results <- result{repo: r.Owner + "/" + r.Name, err: err}
+				return
+			}
+
+			prs := make([]PullRequest, 0, len(nodes))
+			for _, node := range nodes {
+				prs = append(prs, PullRequest{
+					Number:    node.Number,
+					Author:    node.Author.Login,
+					Title:     node.Title,
+					CreatedAt: node.CreatedAt,
+				})
+			}
+			results <- result{repo: r.Owner + "/" + r.Name, prs: prs}
 		}(r)
 	}
 
@@ -70,71 +84,6 @@ func FindPRsByAuthor(repos []repository.Repository, author string) ([]PRWithRepo
 		}
 	}
 	return all, nil
-}
-
-func findPullRequestsByAuthor(client graphqlDoer, r repository.Repository, author string) ([]PullRequest, error) {
-	var results []PullRequest
-	vars := map[string]any{
-		"owner":  r.Owner,
-		"name":   r.Name,
-		"author": author,
-	}
-
-	hasNext := true
-	var cursor *string
-
-	for hasNext {
-		vars["cursor"] = cursor
-		var response struct {
-			Repository struct {
-				PullRequests struct {
-					PageInfo struct {
-						HasNextPage bool    `json:"hasNextPage"`
-						EndCursor   *string `json:"endCursor"`
-					} `json:"pageInfo"`
-					Edges []struct {
-						Node struct {
-							Number    int    `json:"number"`
-							Title     string `json:"title"`
-							CreatedAt string `json:"createdAt"`
-							Author    struct {
-								Login string `json:"login"`
-							} `json:"author"`
-						} `json:"node"`
-					} `json:"edges"`
-				} `json:"pullRequests"`
-			} `json:"repository"`
-		}
-
-		query := `
-			query($owner: String!, $name: String!, $author: String!, $cursor: String) {
-				repository(owner: $owner, name: $name) {
-					pullRequests(first: 100, after: $cursor, states: [OPEN], author: $author) {
-						pageInfo { hasNextPage endCursor }
-						edges { node { number title createdAt author { login } } }
-					}
-				}
-			}`
-
-		err := client.Do(query, vars, &response)
-		if err != nil {
-			return nil, err
-		}
-
-		for _, edge := range response.Repository.PullRequests.Edges {
-			results = append(results, PullRequest{
-				Number:    edge.Node.Number,
-				Author:    edge.Node.Author.Login,
-				Title:     edge.Node.Title,
-				CreatedAt: edge.Node.CreatedAt,
-			})
-		}
-
-		hasNext = response.Repository.PullRequests.PageInfo.HasNextPage
-		cursor = response.Repository.PullRequests.PageInfo.EndCursor
-	}
-
-	return results, nil
 }
 
 func ListNewContributors(repos []repository.Repository, minContributions int) ([]PRWithRepo, error) {
@@ -157,7 +106,7 @@ func ListNewContributors(repos []repository.Repository, minContributions int) ([
 			sem <- struct{}{}
 			defer func() { <-sem }()
 
-			client, err := api.NewGraphQLClient(api.ClientOptions{Host: r.Host})
+			client, err := api.NewGraphQLClient(r.Host)
 			if err != nil {
 				results <- result{repo: r.Owner + "/" + r.Name, err: fmt.Errorf("failed to create graphql client: %w", err)}
 				return
@@ -193,16 +142,26 @@ func ListNewContributors(repos []repository.Repository, minContributions int) ([
 	return allPRs, nil
 }
 
-func listNewContributors(client graphqlDoer, r repository.Repository, minContributions int) ([]PullRequest, error) {
-	pullRequests, err := fetchPullRequests(client, r)
+func listNewContributors(client api.GraphQLDoer, r repository.Repository, minContributions int) ([]PullRequest, error) {
+	nodes, err := api.FetchOpenPullRequests(client, r.Owner, r.Name)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch pull requests: %w", err)
+	}
+
+	pullRequests := make([]PullRequest, 0, len(nodes))
+	for _, node := range nodes {
+		pullRequests = append(pullRequests, PullRequest{
+			Number:    node.Number,
+			Author:    node.Author.Login,
+			Title:     node.Title,
+			CreatedAt: node.CreatedAt,
+		})
 	}
 
 	return filterNewContributors(client, r, pullRequests, minContributions)
 }
 
-func filterNewContributors(client graphqlDoer, r repository.Repository, pullRequests []PullRequest, minContributions int) ([]PullRequest, error) {
+func filterNewContributors(client api.GraphQLDoer, r repository.Repository, pullRequests []PullRequest, minContributions int) ([]PullRequest, error) {
 	type result struct {
 		author string
 		count  int
@@ -234,29 +193,13 @@ func filterNewContributors(client graphqlDoer, r repository.Repository, pullRequ
 
 			searchQuery := fmt.Sprintf("repo:%s/%s is:pr is:closed author:%s", r.Owner, r.Name, author)
 
-			vars := map[string]any{
-				"query": searchQuery,
-			}
-
-			var response struct {
-				Search struct {
-					IssueCount int `json:"issueCount"`
-				} `json:"search"`
-			}
-
-			query := `
-				query($query: String!) {
-					search(query: $query, type: ISSUE, first: 1) {
-						issueCount
-					}
-				}`
-
-			if err := client.Do(query, vars, &response); err != nil {
+			count, err := api.FetchMergedPRCount(client, searchQuery)
+			if err != nil {
 				results <- result{author: author, err: err}
 				return
 			}
 
-			results <- result{author: author, count: response.Search.IssueCount}
+			results <- result{author: author, count: count}
 		}(author)
 	}
 
@@ -281,72 +224,4 @@ func filterNewContributors(client graphqlDoer, r repository.Repository, pullRequ
 	}
 
 	return newContributors, nil
-}
-
-func fetchPullRequests(client graphqlDoer, r repository.Repository) ([]PullRequest, error) {
-	var results []PullRequest
-	vars := map[string]any{
-		"owner": r.Owner,
-		"name":  r.Name,
-	}
-
-	hasNext := true
-	var cursor *string
-
-	for hasNext {
-		vars["cursor"] = cursor
-		var response struct {
-			Repository struct {
-				PullRequests struct {
-					PageInfo struct {
-						HasNextPage bool    `json:"hasNextPage"`
-						EndCursor   *string `json:"endCursor"`
-					} `json:"pageInfo"`
-					Edges []struct {
-						Node struct {
-							Number    int    `json:"number"`
-							Title     string `json:"title"`
-							CreatedAt string `json:"createdAt"`
-							Author    struct {
-								Login string `json:"login"`
-							} `json:"author"`
-						} `json:"node"`
-					} `json:"edges"`
-				} `json:"pullRequests"`
-			} `json:"repository"`
-		}
-
-		query := `
-			query($owner: String!, $name: String!, $cursor: String) {
-				repository(owner: $owner, name: $name) {
-					pullRequests(first: 100, after: $cursor, states: [OPEN]) {
-						pageInfo { hasNextPage endCursor }
-						edges { node { number title createdAt author { login } } }
-					}
-				}
-			}`
-
-		err := client.Do(query, vars, &response)
-		if err != nil {
-			return nil, err
-		}
-
-		for _, edge := range response.Repository.PullRequests.Edges {
-			results = append(results, PullRequest{
-				Number:    edge.Node.Number,
-				Author:    edge.Node.Author.Login,
-				Title:     edge.Node.Title,
-				CreatedAt: edge.Node.CreatedAt,
-			})
-		}
-
-		hasNext = response.Repository.PullRequests.PageInfo.HasNextPage
-		cursor = response.Repository.PullRequests.PageInfo.EndCursor
-	}
-
-	return results, nil
-}
-
-type graphqlDoer interface {
-	Do(query string, variables map[string]any, response any) error
 }

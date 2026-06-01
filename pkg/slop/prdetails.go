@@ -2,10 +2,9 @@ package slop
 
 import (
 	"fmt"
-	"strings"
 	"sync"
 
-	"github.com/cli/go-gh/v2/pkg/api"
+	"github.com/rsteube/gh-slop/pkg/slop/api"
 	"github.com/cli/go-gh/v2/pkg/repository"
 )
 
@@ -64,7 +63,6 @@ func ParsePRRef(ref string) (repository.Repository, int, error) {
 // PRs are specified in "OWNER/REPO#NUMBER" format.
 // PRs are grouped by repo and fetched concurrently with one GraphQL request per repo.
 func FetchPRDetails(prRefs []string) ([]PRDetail, error) {
-	// Parse and group by repo key
 	type prKey struct {
 		host  string
 		owner string
@@ -72,7 +70,7 @@ func FetchPRDetails(prRefs []string) ([]PRDetail, error) {
 	}
 
 	grouped := map[prKey][]int{}
-	refIndex := map[prKey]map[int]int{} // maps PR number -> index in prRefs for ordering
+	refIndex := map[prKey]map[int]int{}
 
 	for i, ref := range prRefs {
 		repo, number, err := ParsePRRef(ref)
@@ -104,14 +102,20 @@ func FetchPRDetails(prRefs []string) ([]PRDetail, error) {
 			sem <- struct{}{}
 			defer func() { <-sem }()
 
-			client, err := api.NewGraphQLClient(api.ClientOptions{Host: key.host})
+			client, err := api.NewGraphQLClient(key.host)
 			if err != nil {
 				ch <- prResult{key: key, err: fmt.Errorf("%s/%s: failed to create graphql client: %w", key.owner, key.name, err)}
 				return
 			}
 
-			details, err := fetchPRDetailsForRepo(client, key.owner, key.name, numbers)
-			ch <- prResult{key: key, details: details, err: err}
+			response, err := api.FetchPRDetailsForRepo(client, key.owner, key.name, numbers)
+			if err != nil {
+				ch <- prResult{key: key, err: err}
+				return
+			}
+
+			details := toPRDetails(key.owner, key.name, numbers, response)
+			ch <- prResult{key: key, details: details}
 		}(key, numbers)
 	}
 
@@ -120,7 +124,6 @@ func FetchPRDetails(prRefs []string) ([]PRDetail, error) {
 		close(ch)
 	}()
 
-	// Collect results, preserving input order
 	ordered := make([]PRDetail, len(prRefs))
 	for res := range ch {
 		if res.err != nil {
@@ -133,7 +136,6 @@ func FetchPRDetails(prRefs []string) ([]PRDetail, error) {
 		}
 	}
 
-	// Flatten non-zero entries
 	var out []PRDetail
 	for _, d := range ordered {
 		if d.Number != 0 {
@@ -143,51 +145,10 @@ func FetchPRDetails(prRefs []string) ([]PRDetail, error) {
 	return out, nil
 }
 
-// fetchPRDetailsForRepo fetches details for specific PR numbers in a single repo
-// using a single GraphQL query with aliased fields.
-func fetchPRDetailsForRepo(client graphqlDoer, owner, name string, numbers []int) ([]PRDetail, error) {
-	// Build a single GraphQL query with aliased pullRequest fields
-	// e.g., pr0: pullRequest(number: 42) { title body ... }
-	vars := map[string]any{
-		"owner": owner,
-		"name":  name,
-	}
-
-	var query string
-	var aliases []string
-	for i, num := range numbers {
-		alias := fmt.Sprintf("pr%d", i)
-		vars[alias] = num
-		aliases = append(aliases, fmt.Sprintf(
-			`%s: pullRequest(number: $%s) { number title body author { login } createdAt url }`,
-			alias, alias,
-		))
-	}
-
-	var buf strings.Builder
-	for i := range numbers {
-		if i > 0 {
-			buf.WriteString(", ")
-		}
-		fmt.Fprintf(&buf, "$pr%d: Int!", i)
-	}
-	query = fmt.Sprintf(`query($owner: String!, $name: String!, %s) {
-  repository(owner: $owner, name: $name) {
-    %s
-  }
-}`,
-		buf.String(),
-		strings.Join(aliases, "\n    "),
-	)
-
-	var response map[string]any
-	if err := client.Do(query, vars, &response); err != nil {
-		return nil, fmt.Errorf("failed to fetch PR details: %w", err)
-	}
-
+func toPRDetails(owner, name string, numbers []int, response map[string]any) []PRDetail {
 	repo, ok := response["repository"].(map[string]any)
 	if !ok {
-		return nil, fmt.Errorf("unexpected response format: missing repository")
+		return nil
 	}
 
 	details := make([]PRDetail, 0, len(numbers))
@@ -195,7 +156,7 @@ func fetchPRDetailsForRepo(client graphqlDoer, owner, name string, numbers []int
 		alias := fmt.Sprintf("pr%d", i)
 		prData, ok := repo[alias].(map[string]any)
 		if !ok {
-			continue // PR may not exist
+			continue
 		}
 		detail := PRDetail{
 			Repo:      owner + "/" + name,
@@ -210,8 +171,7 @@ func fetchPRDetailsForRepo(client graphqlDoer, owner, name string, numbers []int
 		}
 		details = append(details, detail)
 	}
-
-	return details, nil
+	return details
 }
 
 func strVal(v any) string {

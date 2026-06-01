@@ -3,7 +3,7 @@ package slop
 import (
 	"fmt"
 
-	"github.com/cli/go-gh/v2/pkg/api"
+	"github.com/rsteube/gh-slop/pkg/slop/api"
 	"github.com/cli/go-gh/v2/pkg/repository"
 )
 
@@ -31,40 +31,14 @@ func ResolveRepos(repoFilters []string) ([]repository.Repository, error) {
 
 // AccessibleRepos fetches all repositories the current user has push or admin access to.
 func AccessibleRepos() ([]repository.Repository, error) {
-	client, err := api.DefaultRESTClient()
+	client, err := api.NewDefaultRESTClient()
 	if err != nil {
 		return nil, err
 	}
 
-	var allRepos []struct {
-		FullName    string `json:"full_name"`
-		Permissions struct {
-			Admin bool `json:"admin"`
-			Push  bool `json:"push"`
-		} `json:"permissions"`
-	}
-
-	page := 1
-	for {
-		path := fmt.Sprintf("user/repos?per_page=100&sort=updated&direction=desc&page=%d", page)
-		var batch []struct {
-			FullName    string `json:"full_name"`
-			Permissions struct {
-				Admin bool `json:"admin"`
-				Push  bool `json:"push"`
-			} `json:"permissions"`
-		}
-		if err := client.Get(path, &batch); err != nil {
-			return nil, err
-		}
-		if len(batch) == 0 {
-			break
-		}
-		allRepos = append(allRepos, batch...)
-		if len(batch) < 100 {
-			break
-		}
-		page++
+	allRepos, err := api.FetchAccessibleRepos(client)
+	if err != nil {
+		return nil, err
 	}
 
 	result := make([]repository.Repository, 0, len(allRepos))

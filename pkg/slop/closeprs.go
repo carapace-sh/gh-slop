@@ -2,10 +2,9 @@ package slop
 
 import (
 	"fmt"
-	"strings"
 	"sync"
 
-	"github.com/cli/go-gh/v2/pkg/api"
+	"github.com/rsteube/gh-slop/pkg/slop/api"
 )
 
 type ClosedPR struct {
@@ -60,24 +59,18 @@ func ClosePRs(prRefs []string) ([]ClosedPR, error) {
 			sem <- struct{}{}
 			defer func() { <-sem }()
 
-			client, err := api.DefaultRESTClient()
+			client, err := api.NewDefaultRESTClient()
 			if err != nil {
 				ch <- closeResult{index: i, err: fmt.Errorf("%s: failed to create REST client: %w", r.ref, err)}
 				return
 			}
 
-			path := fmt.Sprintf("repos/%s/pulls/%d", r.repo, r.number)
-			body := strings.NewReader(`{"state":"closed"}`)
-			var resp map[string]any
-			if err := client.Patch(path, body, &resp); err != nil {
+			state, err := api.ClosePR(client, r.repo, r.number)
+			if err != nil {
 				ch <- closeResult{index: i, closed: ClosedPR{Repo: r.repo, Number: r.number, State: fmt.Sprintf("error: %v", err)}}
 				return
 			}
 
-			state, _ := resp["state"].(string)
-			if state == "" {
-				state = "closed"
-			}
 			ch <- closeResult{index: i, closed: ClosedPR{Repo: r.repo, Number: r.number, State: state}}
 		}(i, r)
 	}

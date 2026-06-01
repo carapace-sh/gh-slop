@@ -5,7 +5,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/cli/go-gh/v2/pkg/api"
+	"github.com/rsteube/gh-slop/pkg/slop/api"
 )
 
 type UserProfile struct {
@@ -44,13 +44,19 @@ func FetchUserProfiles(logins []string) ([]UserProfile, error) {
 			sem <- struct{}{}
 			defer func() { <-sem }()
 
-			client, err := api.NewGraphQLClient(api.ClientOptions{})
+			client, err := api.NewDefaultGraphQLClient()
 			if err != nil {
 				results <- result{err: fmt.Errorf("%s: failed to create graphql client: %w", login, err)}
 				return
 			}
 
-			profile, err := fetchUserProfile(client, login)
+			resp, err := api.FetchUserProfile(client, login)
+			if err != nil {
+				results <- result{err: fmt.Errorf("%s: %w", login, err)}
+				return
+			}
+
+			profile, err := toUserProfile(login, resp)
 			if err != nil {
 				results <- result{err: fmt.Errorf("%s: %w", login, err)}
 				return
@@ -75,63 +81,16 @@ func FetchUserProfiles(logins []string) ([]UserProfile, error) {
 	return profiles, nil
 }
 
-func fetchUserProfile(client graphqlDoer, login string) (UserProfile, error) {
-	vars := map[string]any{
-		"login": login,
-	}
-
-	var response struct {
-		User struct {
-			CreatedAt string `json:"createdAt"`
-			ContributionsCollection struct {
-				TotalCommitContributions int `json:"totalCommitContributions"`
-			} `json:"contributionsCollection"`
-			PullRequests struct {
-				TotalCount int `json:"totalCount"`
-				Nodes      []struct {
-					Repository struct {
-						NameWithOwner string `json:"nameWithOwner"`
-					} `json:"repository"`
-					Title     string `json:"title"`
-					CreatedAt string `json:"createdAt"`
-					State     string `json:"state"`
-				} `json:"nodes"`
-			} `json:"pullRequests"`
-		} `json:"user"`
-	}
-
-	query := `
-		query($login: String!) {
-			user(login: $login) {
-				createdAt
-				contributionsCollection {
-					totalCommitContributions
-				}
-				pullRequests(first: 50, orderBy: {field: CREATED_AT, direction: DESC}) {
-					totalCount
-					nodes {
-						repository { nameWithOwner }
-						title
-						createdAt
-						state
-					}
-				}
-			}
-		}`
-
-	if err := client.Do(query, vars, &response); err != nil {
-		return UserProfile{}, fmt.Errorf("failed to fetch user profile: %w", err)
-	}
-
-	createdAt, err := time.Parse(time.RFC3339, response.User.CreatedAt)
+func toUserProfile(login string, resp api.UserProfileResponse) (UserProfile, error) {
+	createdAt, err := time.Parse(time.RFC3339, resp.User.CreatedAt)
 	if err != nil {
 		createdAt = time.Time{}
 	}
 
-	prs := make([]UserProfilePR, 0, len(response.User.PullRequests.Nodes))
+	prs := make([]UserProfilePR, 0, len(resp.User.PullRequests.Nodes))
 	repoSet := map[string]bool{}
 	var merged, open, closed int
-	for _, node := range response.User.PullRequests.Nodes {
+	for _, node := range resp.User.PullRequests.Nodes {
 		prs = append(prs, UserProfilePR{
 			Repo:      node.Repository.NameWithOwner,
 			Title:     node.Title,
@@ -152,8 +111,8 @@ func fetchUserProfile(client graphqlDoer, login string) (UserProfile, error) {
 	return UserProfile{
 		Login:              login,
 		CreatedAt:          createdAt,
-		TotalCommits:       response.User.ContributionsCollection.TotalCommitContributions,
-		TotalPRs:           response.User.PullRequests.TotalCount,
+		TotalCommits:       resp.User.ContributionsCollection.TotalCommitContributions,
+		TotalPRs:           resp.User.PullRequests.TotalCount,
 		MergedPRs:          merged,
 		OpenPRs:            open,
 		ClosedPRs:          closed,
