@@ -14,6 +14,11 @@ type ClosedPR struct {
 	State  string // "closed" on success, or error message
 }
 
+// Ref returns the PR reference in "OWNER/REPO#NUMBER" format.
+func (r ClosedPR) Ref() string {
+	return r.Repo + "#" + fmt.Sprint(r.Number)
+}
+
 // ClosePRs closes the given pull requests via the GitHub REST API.
 // PRs are specified in "OWNER/REPO#NUMBER" format.
 func ClosePRs(prRefs []string) ([]ClosedPR, error) {

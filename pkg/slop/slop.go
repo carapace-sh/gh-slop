@@ -15,9 +15,126 @@ type PullRequest struct {
 	CreatedAt string
 }
 
+// Ref returns the PR reference in "OWNER/REPO#NUMBER" format.
+func (pr PullRequest) Ref(repo string) string {
+	return repo + "#" + fmt.Sprint(pr.Number)
+}
+
 type PRWithRepo struct {
 	PullRequest PullRequest
 	Repo        string // "owner/name" for display prefix
+}
+
+// FindPRsByAuthor finds all open PRs authored by the given user across the given repos.
+func FindPRsByAuthor(repos []repository.Repository, author string) ([]PRWithRepo, error) {
+	type result struct {
+		repo  string
+		prs   []PullRequest
+		err   error
+	}
+
+	sem := make(chan struct{}, 5)
+	var wg sync.WaitGroup
+	results := make(chan result, len(repos))
+
+	for _, r := range repos {
+		wg.Add(1)
+		go func(r repository.Repository) {
+			defer wg.Done()
+			sem <- struct{}{}
+			defer func() { <-sem }()
+
+			client, err := api.NewGraphQLClient(api.ClientOptions{Host: r.Host})
+			if err != nil {
+				results <- result{repo: r.Owner + "/" + r.Name, err: fmt.Errorf("failed to create graphql client: %w", err)}
+				return
+			}
+
+			prs, err := findPullRequestsByAuthor(client, r, author)
+			results <- result{repo: r.Owner + "/" + r.Name, prs: prs, err: err}
+		}(r)
+	}
+
+	go func() {
+		wg.Wait()
+		close(results)
+	}()
+
+	var all []PRWithRepo
+	for res := range results {
+		if res.err != nil {
+			return nil, fmt.Errorf("%s: %w", res.repo, res.err)
+		}
+		for _, pr := range res.prs {
+			all = append(all, PRWithRepo{PullRequest: pr, Repo: res.repo})
+		}
+	}
+	return all, nil
+}
+
+func findPullRequestsByAuthor(client graphqlDoer, r repository.Repository, author string) ([]PullRequest, error) {
+	var results []PullRequest
+	vars := map[string]any{
+		"owner":  r.Owner,
+		"name":   r.Name,
+		"author": author,
+	}
+
+	hasNext := true
+	var cursor *string
+
+	for hasNext {
+		vars["cursor"] = cursor
+		var response struct {
+			Repository struct {
+				PullRequests struct {
+					PageInfo struct {
+						HasNextPage bool    `json:"hasNextPage"`
+						EndCursor   *string `json:"endCursor"`
+					} `json:"pageInfo"`
+					Edges []struct {
+						Node struct {
+							Number    int    `json:"number"`
+							Title     string `json:"title"`
+							CreatedAt string `json:"createdAt"`
+							Author    struct {
+								Login string `json:"login"`
+							} `json:"author"`
+						} `json:"node"`
+					} `json:"edges"`
+				} `json:"pullRequests"`
+			} `json:"repository"`
+		}
+
+		query := `
+			query($owner: String!, $name: String!, $author: String!, $cursor: String) {
+				repository(owner: $owner, name: $name) {
+					pullRequests(first: 100, after: $cursor, states: [OPEN], author: $author) {
+						pageInfo { hasNextPage endCursor }
+						edges { node { number title createdAt author { login } } }
+					}
+				}
+			}`
+
+		err := client.Do(query, vars, &response)
+		if err != nil {
+			return nil, err
+		}
+
+		for _, edge := range response.Repository.PullRequests.Edges {
+			results = append(results, PullRequest{
+				Number:    edge.Node.Number,
+				Author:    edge.Node.Author.Login,
+				Title:     edge.Node.Title,
+				CreatedAt: edge.Node.CreatedAt,
+			})
+		}
+
+		hasNext = response.Repository.PullRequests.PageInfo.HasNextPage
+		cursor = response.Repository.PullRequests.PageInfo.EndCursor
+	}
+
+	return results, nil
 }
 
 func ListNewContributors(repos []repository.Repository, minContributions int) ([]PRWithRepo, error) {
