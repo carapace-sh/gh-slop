@@ -234,14 +234,17 @@ func ListReposHandler(params json.RawMessage) (any, *Error) {
 		return nil, &Error{Code: -32603, Message: err.Error()}
 	}
 
-	var out string
+	var b strings.Builder
 	for _, r := range repos {
-		out += fmt.Sprintf("%s/%s\n", r.Owner, r.Name)
+		b.WriteString(r.Owner)
+		b.WriteString("/")
+		b.WriteString(r.Name)
+		b.WriteByte('\n')
 	}
 
-	return map[string]interface{}{
-		"content": []map[string]interface{}{
-			{"type": "text", "text": out},
+	return map[string]any{
+		"content": []map[string]any{
+			{"type": "text", "text": b.String()},
 		},
 	}, nil
 }
@@ -278,8 +281,8 @@ func ListSloppersHandler(params json.RawMessage) (any, *Error) {
 		return nil, &Error{Code: -32603, Message: err.Error()}
 	}
 
-	return map[string]interface{}{
-		"content": []map[string]interface{}{
+	return map[string]any{
+		"content": []map[string]any{
 			{"type": "text", "text": formatPRs(prs)},
 		},
 	}, nil
@@ -310,8 +313,8 @@ func ProfileSloppersHandler(params json.RawMessage) (any, *Error) {
 		return nil, &Error{Code: -32603, Message: err.Error()}
 	}
 
-	return map[string]interface{}{
-		"content": []map[string]interface{}{
+	return map[string]any{
+		"content": []map[string]any{
 			{"type": "text", "text": formatProfiles(profiles)},
 		},
 	}, nil
@@ -387,8 +390,8 @@ func formatPRDetails(details []slop.PRDetail) string {
 		fmt.Fprintf(&b, "URL: %s\n", d.URL)
 		if d.Body != "" {
 			b.WriteString("---\n")
-			b.WriteString(d.Body)
-			b.WriteString("\n")
+			b.WriteString(htmlEscape(d.Body))
+			b.WriteByte('\n')
 		}
 	}
 	return b.String()
@@ -441,9 +444,26 @@ func formatPRs(prs []slop.PRWithRepo) string {
 	if len(prs) == 0 {
 		return "No new contributors found."
 	}
-	var out string
+	var b strings.Builder
 	for _, pr := range prs {
-		out += fmt.Sprintf("#%d: %s (@%s)\n", pr.PullRequest.Number, pr.PullRequest.Title, pr.PullRequest.Author)
+		fmt.Fprintf(&b, "#%d: %s (@%s)\n", pr.PullRequest.Number, pr.PullRequest.Title, pr.PullRequest.Author)
 	}
-	return out
+	return b.String()
+}
+
+func htmlEscape(s string) string {
+	var b strings.Builder
+	for i := 0; i < len(s); i++ {
+		switch s[i] {
+		case '<':
+			b.WriteString("<")
+		case '>':
+			b.WriteString(">")
+		case '&':
+			b.WriteString("&")
+		default:
+			b.WriteByte(s[i])
+		}
+	}
+	return b.String()
 }
