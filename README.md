@@ -77,7 +77,7 @@ run: "$(gh pr list --repo \"${C_ARG0}\" --author \"${C_ARG1}\")"
 completion:
   positional:
     - ["$gh-slop.Repos ||| $multiparts([/])"]
-    - ["$gh-slop.SlopperPRs([${C_ARG1}])"]
+    - ["$gh-slop.Sloppers([${C_ARG0}])"]
 ```
 
 [Crush]: https://github.com/charmbracelet/crush
