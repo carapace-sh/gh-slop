@@ -64,7 +64,6 @@ func ParsePRRef(ref string) (repository.Repository, int, error) {
 // PRs are grouped by repo and fetched concurrently with one GraphQL request per repo.
 func FetchPRDetails(prRefs []string) ([]PRDetail, error) {
 	type prKey struct {
-		host  string
 		owner string
 		name  string
 	}
@@ -77,12 +76,17 @@ func FetchPRDetails(prRefs []string) ([]PRDetail, error) {
 		if err != nil {
 			return nil, err
 		}
-		key := prKey{host: repo.Host, owner: repo.Owner, name: repo.Name}
+		key := prKey{owner: repo.Owner, name: repo.Name}
 		grouped[key] = append(grouped[key], number)
 		if refIndex[key] == nil {
 			refIndex[key] = map[int]int{}
 		}
 		refIndex[key][number] = i
+	}
+
+	client, err := api.NewDefaultGraphQLClient()
+	if err != nil {
+		return nil, fmt.Errorf("failed to create graphql client: %w", err)
 	}
 
 	type prResult struct {
@@ -101,12 +105,6 @@ func FetchPRDetails(prRefs []string) ([]PRDetail, error) {
 			defer wg.Done()
 			sem <- struct{}{}
 			defer func() { <-sem }()
-
-			client, err := api.NewGraphQLClient(key.host)
-			if err != nil {
-				ch <- prResult{key: key, err: fmt.Errorf("%s/%s: failed to create graphql client: %w", key.owner, key.name, err)}
-				return
-			}
 
 			response, err := api.FetchPRDetailsForRepo(client, key.owner, key.name, numbers)
 			if err != nil {
@@ -130,7 +128,7 @@ func FetchPRDetails(prRefs []string) ([]PRDetail, error) {
 			return nil, fmt.Errorf("%s/%s: %w", res.key.owner, res.key.name, res.err)
 		}
 		for _, d := range res.details {
-			key := prKey{host: res.key.host, owner: res.key.owner, name: res.key.name}
+			key := prKey{owner: res.key.owner, name: res.key.name}
 			idx := refIndex[key][d.Number]
 			ordered[idx] = d
 		}

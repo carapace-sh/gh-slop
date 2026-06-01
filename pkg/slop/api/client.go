@@ -10,10 +10,6 @@ type GraphQLDoer interface {
 	Do(query string, variables map[string]any, response any) error
 }
 
-func NewGraphQLClient(host string) (GraphQLDoer, error) {
-	return api.NewGraphQLClient(api.ClientOptions{Host: host})
-}
-
 func NewDefaultGraphQLClient() (GraphQLDoer, error) {
 	return api.NewGraphQLClient(api.ClientOptions{})
 }

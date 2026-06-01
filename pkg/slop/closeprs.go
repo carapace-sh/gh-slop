@@ -42,6 +42,11 @@ func ClosePRs(prRefs []string) ([]ClosedPR, error) {
 		})
 	}
 
+	restClient, err := api.NewDefaultRESTClient()
+	if err != nil {
+		return nil, fmt.Errorf("failed to create REST client: %w", err)
+	}
+
 	type closeResult struct {
 		index int
 		closed ClosedPR
@@ -59,13 +64,7 @@ func ClosePRs(prRefs []string) ([]ClosedPR, error) {
 			sem <- struct{}{}
 			defer func() { <-sem }()
 
-			client, err := api.NewDefaultRESTClient()
-			if err != nil {
-				ch <- closeResult{index: i, err: fmt.Errorf("%s: failed to create REST client: %w", r.ref, err)}
-				return
-			}
-
-			state, err := api.ClosePR(client, r.repo, r.number)
+			state, err := api.ClosePR(restClient, r.repo, r.number)
 			if err != nil {
 				ch <- closeResult{index: i, closed: ClosedPR{Repo: r.repo, Number: r.number, State: fmt.Sprintf("error: %v", err)}}
 				return

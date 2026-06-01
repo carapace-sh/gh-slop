@@ -27,10 +27,15 @@ type PRWithRepo struct {
 
 // FindPRsByAuthor finds all open PRs authored by the given user across the given repos.
 func FindPRsByAuthor(repos []repository.Repository, author string) ([]PRWithRepo, error) {
+	client, err := api.NewDefaultGraphQLClient()
+	if err != nil {
+		return nil, fmt.Errorf("failed to create graphql client: %w", err)
+	}
+
 	type result struct {
-		repo  string
-		prs   []PullRequest
-		err   error
+		repo string
+		prs  []PullRequest
+		err  error
 	}
 
 	sem := make(chan struct{}, 5)
@@ -43,12 +48,6 @@ func FindPRsByAuthor(repos []repository.Repository, author string) ([]PRWithRepo
 			defer wg.Done()
 			sem <- struct{}{}
 			defer func() { <-sem }()
-
-			client, err := api.NewGraphQLClient(r.Host)
-			if err != nil {
-				results <- result{repo: r.Owner + "/" + r.Name, err: fmt.Errorf("failed to create graphql client: %w", err)}
-				return
-			}
 
 			nodes, err := api.FetchPullRequestsByAuthor(client, r.Owner, r.Name, author)
 			if err != nil {
@@ -87,6 +86,11 @@ func FindPRsByAuthor(repos []repository.Repository, author string) ([]PRWithRepo
 }
 
 func ListNewContributors(repos []repository.Repository, minContributions int) ([]PRWithRepo, error) {
+	client, err := api.NewDefaultGraphQLClient()
+	if err != nil {
+		return nil, fmt.Errorf("failed to create graphql client: %w", err)
+	}
+
 	multiRepo := len(repos) > 1
 
 	type result struct {
@@ -105,12 +109,6 @@ func ListNewContributors(repos []repository.Repository, minContributions int) ([
 			defer wg.Done()
 			sem <- struct{}{}
 			defer func() { <-sem }()
-
-			client, err := api.NewGraphQLClient(r.Host)
-			if err != nil {
-				results <- result{repo: r.Owner + "/" + r.Name, err: fmt.Errorf("failed to create graphql client: %w", err)}
-				return
-			}
 
 			prs, err := listNewContributors(client, r, minContributions)
 			results <- result{repo: r.Owner + "/" + r.Name, prs: prs, err: err}
