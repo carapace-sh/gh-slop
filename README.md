@@ -26,7 +26,7 @@ gh extension install carapace-sh/gh-slop
 
 ### MCP Server
 
-The extension provides a stdio-based [MCP] server (`gh slop mcp`) with four tools:
+The extension provides a stdio-based [MCP] server (`gh slop mcp`) with five tools:
 
 | Tool | Description |
 |------|-------------|
@@ -34,6 +34,7 @@ The extension provides a stdio-based [MCP] server (`gh slop mcp`) with four tool
 | `list-sloppers` | Lists open PRs from new/low-contribution authors |
 | `profile-sloppers` | Fetches detailed GitHub profiles for given usernames (account age, commit count, PR distribution, merge rate, recent PRs) |
 | `view-prs` | Fetches title, body, author, and metadata for a list of PRs in `OWNER/REPO#NUMBER` format |
+| `close-prs` | Closes pull requests by reference (destructive — requires explicit user authorization) |
 
 ### Slop Detection Skill
 
@@ -59,12 +60,13 @@ Patterns that are specific to a particular org, tool, or repo should **not** go 
 
 ## Macro Export
 
-`gh-slop` exports two [carapace] macros via `carapace-spec`, making its completion actions available in YAML user specs:
+`gh-slop` exports three [carapace] macros via `carapace-spec`, making its completion actions available in YAML user specs:
 
 | Macro | Type | Description |
 |-------|------|-------------|
 | `gh-slop.Repos` | `MacroN` | Completes writable repositories in `owner/repo` format (24h cache) |
 | `gh-slop.Sloppers` | `MacroV` | Completes usernames of low-contribution authors with slop counts and styling (15min cache, accepts repo list) |
+| `gh-slop.SlopperPRs` | `MacroI` | Completes PR references in `OWNER/REPO#NUMBER` format for a given slopper |
 
 ### Usage in Specs
 
@@ -75,7 +77,7 @@ run: "$(gh pr list --repo \"${C_ARG0}\" --author \"${C_ARG1}\")"
 completion:
   positional:
     - ["$gh-slop.Repos ||| $multiparts([/])"]
-    - ["$gh-slop.Sloppers([${C_ARG0}])"]
+    - ["$gh-slop.SlopperPRs([${C_ARG1}])"]
 ```
 
 [Crush]: https://github.com/charmbracelet/crush
