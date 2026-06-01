@@ -28,8 +28,7 @@ type UserProfilePR struct {
 }
 
 func FetchUserProfiles(logins []string) ([]UserProfile, error) {
-	client, err := api.NewDefaultGraphQLClient()
-	if err != nil {
+	if _, err := api.GraphQLClient(); err != nil {
 		return nil, fmt.Errorf("failed to create graphql client: %w", err)
 	}
 
@@ -49,7 +48,7 @@ func FetchUserProfiles(logins []string) ([]UserProfile, error) {
 			sem <- struct{}{}
 			defer func() { <-sem }()
 
-			resp, err := api.FetchUserProfile(client, login)
+			resp, err := api.FetchUserProfile(login)
 			if err != nil {
 				results <- result{err: fmt.Errorf("%s: %w", login, err)}
 				return

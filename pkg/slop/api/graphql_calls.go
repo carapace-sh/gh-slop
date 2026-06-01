@@ -5,7 +5,7 @@ import (
 	"strings"
 )
 
-func FetchOpenPullRequests(client GraphQLDoer, owner, name string) ([]PullRequestNode, error) {
+func FetchOpenPullRequests(owner, name string) ([]PullRequestNode, error) {
 	var results []PullRequestNode
 	vars := map[string]any{
 		"owner": owner,
@@ -14,6 +14,11 @@ func FetchOpenPullRequests(client GraphQLDoer, owner, name string) ([]PullReques
 
 	hasNext := true
 	var cursor *string
+
+	client, err := GraphQLClient()
+	if err != nil {
+		return nil, err
+	}
 
 	for hasNext {
 		vars["cursor"] = cursor
@@ -33,7 +38,7 @@ func FetchOpenPullRequests(client GraphQLDoer, owner, name string) ([]PullReques
 	return results, nil
 }
 
-func FetchPullRequestsByAuthor(client GraphQLDoer, owner, name, author string) ([]PullRequestNode, error) {
+func FetchPullRequestsByAuthor(owner, name, author string) ([]PullRequestNode, error) {
 	var results []PullRequestNode
 	vars := map[string]any{
 		"owner":  owner,
@@ -43,6 +48,11 @@ func FetchPullRequestsByAuthor(client GraphQLDoer, owner, name, author string) (
 
 	hasNext := true
 	var cursor *string
+
+	client, err := GraphQLClient()
+	if err != nil {
+		return nil, err
+	}
 
 	for hasNext {
 		vars["cursor"] = cursor
@@ -62,7 +72,12 @@ func FetchPullRequestsByAuthor(client GraphQLDoer, owner, name, author string) (
 	return results, nil
 }
 
-func FetchMergedPRCount(client GraphQLDoer, searchQuery string) (int, error) {
+func FetchMergedPRCount(searchQuery string) (int, error) {
+	client, err := GraphQLClient()
+	if err != nil {
+		return 0, err
+	}
+
 	vars := map[string]any{
 		"query": searchQuery,
 	}
@@ -73,7 +88,12 @@ func FetchMergedPRCount(client GraphQLDoer, searchQuery string) (int, error) {
 	return resp.Search.IssueCount, nil
 }
 
-func FetchUserProfile(client GraphQLDoer, login string) (UserProfileResponse, error) {
+func FetchUserProfile(login string) (UserProfileResponse, error) {
+	client, err := GraphQLClient()
+	if err != nil {
+		return UserProfileResponse{}, err
+	}
+
 	vars := map[string]any{
 		"login": login,
 	}
@@ -84,7 +104,12 @@ func FetchUserProfile(client GraphQLDoer, login string) (UserProfileResponse, er
 	return resp, nil
 }
 
-func FetchPRDetailsForRepo(client GraphQLDoer, owner, name string, numbers []int) (map[string]any, error) {
+func FetchPRDetailsForRepo(owner, name string, numbers []int) (map[string]any, error) {
+	client, err := GraphQLClient()
+	if err != nil {
+		return nil, err
+	}
+
 	vars := map[string]any{
 		"owner": owner,
 		"name":  name,

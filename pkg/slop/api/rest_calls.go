@@ -5,7 +5,12 @@ import (
 	"strings"
 )
 
-func FetchAccessibleRepos(client RESTDoer) ([]UserRepoResponse, error) {
+func FetchAccessibleRepos() ([]UserRepoResponse, error) {
+	client, err := RESTClient()
+	if err != nil {
+		return nil, err
+	}
+
 	var allRepos []UserRepoResponse
 
 	page := 1
@@ -28,7 +33,12 @@ func FetchAccessibleRepos(client RESTDoer) ([]UserRepoResponse, error) {
 	return allRepos, nil
 }
 
-func ClosePR(client RESTDoer, repo string, number int) (string, error) {
+func ClosePR(repo string, number int) (string, error) {
+	client, err := RESTClient()
+	if err != nil {
+		return "", err
+	}
+
 	path := fmt.Sprintf("repos/%s/pulls/%d", repo, number)
 	body := strings.NewReader(`{"state":"closed"}`)
 	var resp map[string]any

@@ -84,8 +84,7 @@ func FetchPRDetails(prRefs []string) ([]PRDetail, error) {
 		refIndex[key][number] = i
 	}
 
-	client, err := api.NewDefaultGraphQLClient()
-	if err != nil {
+	if _, err := api.GraphQLClient(); err != nil {
 		return nil, fmt.Errorf("failed to create graphql client: %w", err)
 	}
 
@@ -106,7 +105,7 @@ func FetchPRDetails(prRefs []string) ([]PRDetail, error) {
 			sem <- struct{}{}
 			defer func() { <-sem }()
 
-			response, err := api.FetchPRDetailsForRepo(client, key.owner, key.name, numbers)
+			response, err := api.FetchPRDetailsForRepo(key.owner, key.name, numbers)
 			if err != nil {
 				ch <- prResult{key: key, err: err}
 				return

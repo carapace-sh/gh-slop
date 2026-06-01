@@ -2,23 +2,40 @@ package api
 
 import (
 	"io"
+	"sync"
 
-	"github.com/cli/go-gh/v2/pkg/api"
+	ghapi "github.com/cli/go-gh/v2/pkg/api"
 )
 
-type GraphQLDoer interface {
+type graphQLDoer interface {
 	Do(query string, variables map[string]any, response any) error
 }
 
-func NewDefaultGraphQLClient() (GraphQLDoer, error) {
-	return api.NewGraphQLClient(api.ClientOptions{})
-}
-
-type RESTDoer interface {
+type restDoer interface {
 	Get(path string, resp any) error
 	Patch(path string, body io.Reader, resp any) error
 }
 
-func NewDefaultRESTClient() (RESTDoer, error) {
-	return api.DefaultRESTClient()
+var (
+	graphqlOnce    sync.Once
+	graphqlClient  graphQLDoer
+	graphqlInitErr error
+
+	restOnce    sync.Once
+	restClient  restDoer
+	restInitErr error
+)
+
+func GraphQLClient() (graphQLDoer, error) {
+	graphqlOnce.Do(func() {
+		graphqlClient, graphqlInitErr = ghapi.NewGraphQLClient(ghapi.ClientOptions{})
+	})
+	return graphqlClient, graphqlInitErr
+}
+
+func RESTClient() (restDoer, error) {
+	restOnce.Do(func() {
+		restClient, restInitErr = ghapi.DefaultRESTClient()
+	})
+	return restClient, restInitErr
 }

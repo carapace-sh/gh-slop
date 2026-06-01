@@ -31,12 +31,7 @@ func ResolveRepos(repoFilters []string) ([]repository.Repository, error) {
 
 // AccessibleRepos fetches all repositories the current user has push or admin access to.
 func AccessibleRepos() ([]repository.Repository, error) {
-	client, err := api.NewDefaultRESTClient()
-	if err != nil {
-		return nil, err
-	}
-
-	allRepos, err := api.FetchAccessibleRepos(client)
+	allRepos, err := api.FetchAccessibleRepos()
 	if err != nil {
 		return nil, err
 	}

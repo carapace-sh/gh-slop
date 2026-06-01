@@ -27,11 +27,6 @@ type PRWithRepo struct {
 
 // FindPRsByAuthor finds all open PRs authored by the given user across the given repos.
 func FindPRsByAuthor(repos []repository.Repository, author string) ([]PRWithRepo, error) {
-	client, err := api.NewDefaultGraphQLClient()
-	if err != nil {
-		return nil, fmt.Errorf("failed to create graphql client: %w", err)
-	}
-
 	type result struct {
 		repo string
 		prs  []PullRequest
@@ -49,7 +44,7 @@ func FindPRsByAuthor(repos []repository.Repository, author string) ([]PRWithRepo
 			sem <- struct{}{}
 			defer func() { <-sem }()
 
-			nodes, err := api.FetchPullRequestsByAuthor(client, r.Owner, r.Name, author)
+			nodes, err := api.FetchPullRequestsByAuthor(r.Owner, r.Name, author)
 			if err != nil {
 				results <- result{repo: r.Owner + "/" + r.Name, err: err}
 				return
@@ -86,11 +81,6 @@ func FindPRsByAuthor(repos []repository.Repository, author string) ([]PRWithRepo
 }
 
 func ListNewContributors(repos []repository.Repository, minContributions int) ([]PRWithRepo, error) {
-	client, err := api.NewDefaultGraphQLClient()
-	if err != nil {
-		return nil, fmt.Errorf("failed to create graphql client: %w", err)
-	}
-
 	multiRepo := len(repos) > 1
 
 	type result struct {
@@ -110,7 +100,7 @@ func ListNewContributors(repos []repository.Repository, minContributions int) ([
 			sem <- struct{}{}
 			defer func() { <-sem }()
 
-			prs, err := listNewContributors(client, r, minContributions)
+			prs, err := listNewContributors(r, minContributions)
 			results <- result{repo: r.Owner + "/" + r.Name, prs: prs, err: err}
 		}(r)
 	}
@@ -140,8 +130,8 @@ func ListNewContributors(repos []repository.Repository, minContributions int) ([
 	return allPRs, nil
 }
 
-func listNewContributors(client api.GraphQLDoer, r repository.Repository, minContributions int) ([]PullRequest, error) {
-	nodes, err := api.FetchOpenPullRequests(client, r.Owner, r.Name)
+func listNewContributors(r repository.Repository, minContributions int) ([]PullRequest, error) {
+	nodes, err := api.FetchOpenPullRequests(r.Owner, r.Name)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch pull requests: %w", err)
 	}
@@ -156,10 +146,10 @@ func listNewContributors(client api.GraphQLDoer, r repository.Repository, minCon
 		})
 	}
 
-	return filterNewContributors(client, r, pullRequests, minContributions)
+	return filterNewContributors(r, pullRequests, minContributions)
 }
 
-func filterNewContributors(client api.GraphQLDoer, r repository.Repository, pullRequests []PullRequest, minContributions int) ([]PullRequest, error) {
+func filterNewContributors(r repository.Repository, pullRequests []PullRequest, minContributions int) ([]PullRequest, error) {
 	type result struct {
 		author string
 		count  int
@@ -191,7 +181,7 @@ func filterNewContributors(client api.GraphQLDoer, r repository.Repository, pull
 
 			searchQuery := fmt.Sprintf("repo:%s/%s is:pr is:closed author:%s", r.Owner, r.Name, author)
 
-			count, err := api.FetchMergedPRCount(client, searchQuery)
+			count, err := api.FetchMergedPRCount(searchQuery)
 			if err != nil {
 				results <- result{author: author, err: err}
 				return
