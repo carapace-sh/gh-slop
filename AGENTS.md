@@ -53,7 +53,7 @@ pkg/render/render.go        → terminal output: groups by author, time-cluster 
 pkg/mcp/server.go           → MCP server types (Server, Tool, Request/Response, NewServer)
 pkg/mcp/handler.go           → MCP request routing (ServeStdio, processMessage, handleRequest, handleToolCall)
 pkg/mcp/handlers.go          → MCP tool handler implementations (listReposHandler, listSloppersHandler, etc.)
-pkg/mcp/formatter.go         → MCP response formatting (formatPRs, formatProfiles, formatPRDetails, htmlEscape)
+pkg/mcp/formatter.go         → MCP response formatting (formatPRs, formatProfiles, formatPRDetails, formatClosedPRs, htmlEscape)
 pkg/actions/repo.go         → carapace completion action for repositories (ActionRepos)
 pkg/actions/slopper.go      → carapace completion actions: ActionSloppers (MacroV), ActionSlopperPRs (MacroI)
 pkg/crush/crush.go          → Crush integration: deploys embedded crush.json + slop-detect skill, launches `crush` CLI
@@ -80,7 +80,7 @@ pkg/crush/skills/slop-detect/SKILL.md → embedded skill: 7-step slop detection 
 - `view-prs` — batch-fetches PR details (title, body, author, createdAt, URL) for a list of PRs in `OWNER/REPO#NUMBER` format, using aliased GraphQL queries per repo
 - `close-prs` — closes pull requests by reference, accepts a list of PRs in `OWNER/REPO#NUMBER` format and closes each via the GitHub REST API (destructive — must only be invoked with explicit user authorization)
 
-**Crush integration**: Running `gh slop` without a subcommand deploys an embedded `crush.json` config (which registers the MCP server) and the `slop-detect` skill to `$XDG_CONFIG_HOME/gh-slop/crush/`, then launches the `crush` CLI binary. Running `gh slop detect` does the same but passes `crush run "detect slop in ..."` to auto-trigger the skill. The `EnsureConfig()` function won't overwrite an existing `crush.json` (only deploys if missing), but the skill file is always overwritten.
+**Crush integration**: Running `gh slop` without a subcommand deploys an embedded `crush.json` config (which registers the MCP server) and the `slop-detect` skill to `$XDG_CONFIG_HOME/gh-slop/crush/`, then launches the `crush` CLI binary. Running `gh slop detect` does the same but passes `crush run "detect slop in ..."` to auto-trigger the skill. The `EnsureConfig()` function won't overwrite an existing `crush.json` (only deploys if missing), but the embedded skill file (`SKILL.md`) is **always overwritten** on each run to pick up any changes from the binary.
 
 **Output styling**: `pkg/render/render.go` groups PRs by author and uses `lipgloss` for terminal styling. PRs are time-clustered (within 1-hour windows) and color-coded: white for the first in a cluster, yellow for the second, red for third+.
 
