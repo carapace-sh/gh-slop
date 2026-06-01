@@ -74,6 +74,28 @@ func formatClosedPRs(results []slop.ClosedPR) string {
 	return b.String()
 }
 
+func formatIssueDetails(details []slop.IssueDetail) string {
+	var b strings.Builder
+	for i, d := range details {
+		if i > 0 {
+			b.WriteByte('\n')
+		}
+		fmt.Fprintf(&b, "## %s#%d\n", d.Repo, d.Number)
+		fmt.Fprintf(&b, "Title: %s\n", d.Title)
+		fmt.Fprintf(&b, "Author: @%s\n", d.Author)
+		fmt.Fprintf(&b, "State: %s\n", d.State)
+		fmt.Fprintf(&b, "Created: %s\n", d.CreatedAt)
+		fmt.Fprintf(&b, "Updated: %s\n", d.UpdatedAt)
+		fmt.Fprintf(&b, "URL: %s\n", d.URL)
+		if d.Body != "" {
+			b.WriteString("---\n")
+			b.WriteString(htmlEscape(d.Body))
+			b.WriteByte('\n')
+		}
+	}
+	return b.String()
+}
+
 func htmlEscape(s string) string {
 	var b strings.Builder
 	for i := 0; i < len(s); i++ {

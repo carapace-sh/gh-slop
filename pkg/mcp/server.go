@@ -77,6 +77,11 @@ func NewServer(toolHandler ToolCallHandler) *Server {
 				Description: "Close pull requests by PR reference, returning the new state of each PR after closing",
 				InputSchema: json.RawMessage(`{"type":"object","properties":{"prs":{"description":"List of PR references in OWNER/REPO#NUMBER format (e.g. [\"cli/cli#1234\", \"owner/repo#567\"])","type":"array","items":{"type":"string"}}},"required":["prs"]}`),
 			},
+			{
+				Name:        "view-issues",
+				Description: "Fetch details (title, body, state, author, createdAt, updatedAt, URL) for a list of issues in a single batch call using the REST API",
+				InputSchema: json.RawMessage(`{"type":"object","properties":{"issues":{"description":"List of issue references in OWNER/REPO#NUMBER format (e.g. [\"cli/cli#1234\", \"owner/repo#567\"])","type":"array","items":{"type":"string"}}},"required":["issues"]}`),
+			},
 		},
 		toolHandler: toolHandler,
 	}

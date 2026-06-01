@@ -103,3 +103,21 @@ func closePRsHandler(params json.RawMessage) (string, bool) {
 	}
 	return formatClosedPRs(results), false
 }
+
+func viewIssuesHandler(params json.RawMessage) (string, bool) {
+	var args struct {
+		Issues []string `json:"issues"`
+	}
+	if err := json.Unmarshal(params, &args); err != nil {
+		return err.Error(), true
+	}
+	if len(args.Issues) == 0 {
+		return "issues is required", true
+	}
+
+	details, err := slop.FetchIssueDetails(args.Issues)
+	if err != nil {
+		return err.Error(), true
+	}
+	return formatIssueDetails(details), false
+}

@@ -140,6 +140,8 @@ func (s *Server) handleToolCall(params json.RawMessage) (any, *Error) {
 		content, isErr = viewPRsHandler(args.Arguments)
 	case "close-prs":
 		content, isErr = closePRsHandler(args.Arguments)
+	case "view-issues":
+		content, isErr = viewIssuesHandler(args.Arguments)
 	default:
 		return nil, &Error{Code: -32602, Message: "Unknown tool: " + args.Name}
 	}

@@ -17,6 +17,95 @@ type PRDetail struct {
 	URL       string
 }
 
+type IssueDetail struct {
+	Repo      string // "owner/repo"
+	Number    int
+	Title     string
+	Body      string
+	Author    string
+	State     string
+	CreatedAt string
+	UpdatedAt string
+	URL       string
+}
+
+// FetchIssueDetails fetches title, body, state, createdAt, updatedAt, author, and URL for a list of issues.
+// Issues are specified in "OWNER/REPO#NUMBER" format.
+// Uses parallelMap for concurrent fetching via REST API.
+func FetchIssueDetails(issueRefs []string) ([]IssueDetail, error) {
+	type issueKey struct {
+		owner string
+		name  string
+	}
+
+	grouped := map[issueKey][]int{}
+	refIndex := map[issueKey]map[int]int{}
+
+	for i, ref := range issueRefs {
+		repo, number, err := ParsePRRef(ref)
+		if err != nil {
+			return nil, err
+		}
+		key := issueKey{owner: repo.Owner, name: repo.Name}
+		grouped[key] = append(grouped[key], number)
+		if refIndex[key] == nil {
+			refIndex[key] = map[int]int{}
+		}
+		refIndex[key][number] = i
+	}
+
+	type repoResult struct {
+		key     issueKey
+		details []IssueDetail
+	}
+
+	keys := make([]issueKey, 0, len(grouped))
+	for key := range grouped {
+		keys = append(keys, key)
+	}
+
+	results, err := parallelMap(keys, 5, func(key issueKey) (repoResult, error) {
+		var details []IssueDetail
+		for _, num := range grouped[key] {
+			issue, err := api.FetchIssue(key.owner+"/"+key.name, num)
+			if err != nil {
+				return repoResult{key: key}, fmt.Errorf("%s/%s: %w", key.owner, key.name, err)
+			}
+			details = append(details, IssueDetail{
+				Repo:      key.owner + "/" + key.name,
+				Number:    issue.Number,
+				Title:     issue.Title,
+				Body:      issue.Body,
+				Author:    issue.Author.Login,
+				State:     issue.State,
+				CreatedAt: issue.CreatedAt,
+				UpdatedAt: issue.UpdatedAt,
+				URL:       issue.URL,
+			})
+		}
+		return repoResult{key: key, details: details}, nil
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	ordered := make([]IssueDetail, len(issueRefs))
+	for _, res := range results {
+		for _, d := range res.details {
+			idx := refIndex[res.key][d.Number]
+			ordered[idx] = d
+		}
+	}
+
+	var out []IssueDetail
+	for _, d := range ordered {
+		if d.Number != 0 {
+			out = append(out, d)
+		}
+	}
+	return out, nil
+}
+
 // ParsePRRef parses a PR reference in "OWNER/REPO#NUMBER" format
 // and returns the repository and PR number.
 func ParsePRRef(ref string) (repository.Repository, int, error) {
