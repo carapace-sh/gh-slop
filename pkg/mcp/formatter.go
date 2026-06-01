@@ -18,6 +18,17 @@ func formatPRs(prs []slop.PRWithRepo) string {
 	return b.String()
 }
 
+func formatIssues(issues []slop.IssueWithRepo) string {
+	if len(issues) == 0 {
+		return "No issues found."
+	}
+	var b strings.Builder
+	for _, issue := range issues {
+		fmt.Fprintf(&b, "%s#%d: %s [%s] (@%s)\n", issue.Repo, issue.Issue.Number, issue.Issue.Title, issue.Issue.State, issue.Issue.Author)
+	}
+	return b.String()
+}
+
 func formatProfiles(profiles []slop.UserProfile) string {
 	var b strings.Builder
 	for i, p := range profiles {

@@ -82,6 +82,11 @@ func NewServer(toolHandler ToolCallHandler) *Server {
 				Description: "Fetch details (title, body, state, author, createdAt, updatedAt, URL) for a list of issues in a single batch call using the REST API",
 				InputSchema: json.RawMessage(`{"type":"object","properties":{"issues":{"description":"List of issue references in OWNER/REPO#NUMBER format (e.g. [\"cli/cli#1234\", \"owner/repo#567\"])","type":"array","items":{"type":"string"}}},"required":["issues"]}`),
 			},
+			{
+				Name:        "list-issues",
+				Description: "List issues authored by a given user across one or more repositories",
+				InputSchema: json.RawMessage(`{"type":"object","properties":{"repositories":{"description":"List of repositories to check in owner/repo format. If not provided, uses the current repository.","type":"array","items":{"type":"string"}},"author":{"description":"GitHub username to list issues for","type":"string"}},"required":["author"]}`),
+			},
 		},
 		toolHandler: toolHandler,
 	}

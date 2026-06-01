@@ -71,6 +71,39 @@ func FetchPullRequestsByAuthor(owner, name, author string) ([]PullRequestNode, e
 	return results, nil
 }
 
+func FetchIssuesByAuthor(owner, name, author string) ([]IssueNode, error) {
+	var results []IssueNode
+	searchQuery := fmt.Sprintf("repo:%s/%s is:issue author:%s", owner, name, author)
+	vars := map[string]any{
+		"query": searchQuery,
+	}
+
+	hasNext := true
+	var cursor *string
+
+	client, err := graphQLClient()
+	if err != nil {
+		return nil, err
+	}
+
+	for hasNext {
+		vars["cursor"] = cursor
+		var resp SearchIssuesResponse
+		if err := client.Do(QuerySearchIssues, vars, &resp); err != nil {
+			return nil, err
+		}
+
+		for _, edge := range resp.Search.Edges {
+			results = append(results, edge.Node)
+		}
+
+		hasNext = resp.Search.PageInfo.HasNextPage
+		cursor = resp.Search.PageInfo.EndCursor
+	}
+
+	return results, nil
+}
+
 func FetchMergedPRCount(searchQuery string) (int, error) {
 	client, err := graphQLClient()
 	if err != nil {

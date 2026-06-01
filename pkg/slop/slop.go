@@ -24,6 +24,59 @@ type PRWithRepo struct {
 	Repo        string // "owner/name" for display prefix
 }
 
+type Issue struct {
+	Number    int
+	Author    string
+	Title     string
+	CreatedAt string
+	State     string
+}
+
+func (i Issue) Ref(repo string) string {
+	return repo + "#" + fmt.Sprint(i.Number)
+}
+
+type IssueWithRepo struct {
+	Issue Issue
+	Repo  string // "owner/name" for display prefix
+}
+
+func FindIssuesByAuthor(repos []repository.Repository, author string) ([]IssueWithRepo, error) {
+	type repoResult struct {
+		repo   string
+		issues []Issue
+	}
+
+	results, err := parallelMap(repos, 5, func(r repository.Repository) (repoResult, error) {
+		nodes, err := api.FetchIssuesByAuthor(r.Owner, r.Name, author)
+		if err != nil {
+			return repoResult{repo: r.Owner + "/" + r.Name}, fmt.Errorf("%s: %w", r.Owner+"/"+r.Name, err)
+		}
+		issues := make([]Issue, 0, len(nodes))
+		for _, node := range nodes {
+			issues = append(issues, Issue{
+				Number:    node.Number,
+				Author:    node.Author.Login,
+				Title:     node.Title,
+				CreatedAt: node.CreatedAt,
+				State:     node.State,
+			})
+		}
+		return repoResult{repo: r.Owner + "/" + r.Name, issues: issues}, nil
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	var all []IssueWithRepo
+	for _, res := range results {
+		for _, issue := range res.issues {
+			all = append(all, IssueWithRepo{Issue: issue, Repo: res.repo})
+		}
+	}
+	return all, nil
+}
+
 // FindPRsByAuthor finds all open PRs authored by the given user across the given repos.
 func FindPRsByAuthor(repos []repository.Repository, author string) ([]PRWithRepo, error) {
 	type repoResult struct {

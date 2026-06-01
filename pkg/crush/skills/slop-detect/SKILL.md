@@ -69,6 +69,15 @@ Fetches title, body, state, author, createdAt, updatedAt, and URL for a list of 
 ||-----------|------|----------|-------------|
 || `issues` | `array<string>` | yes | List of issue references in `OWNER/REPO#NUMBER` format (e.g. `["cli/cli#1234", "owner/repo#567"]`) |
 
+### `mcp_gh-slop_list-issues`
+
+Lists issues authored by a given user across one or more repositories. Use this to check whether a slopper has also opened issues (which may indicate deeper engagement or conversely more spray behavior). Returns issue number, title, state, author, and createdAt, grouped by repo.
+
+|| Parameter | Type | Required | Description |
+||-----------|------|----------|-------------|
+|| `author` | `string` | yes | GitHub username to list issues for |
+|| `repositories` | `array<string>` | no | List of `owner/repo` repositories to check. If not provided, uses the current repository |
+
 ### Step 3: Deep analysis — Profile each author
 
 Call `mcp_gh-slop_profile-sloppers` once with all unique authors from the `list-sloppers` results. This fetches all profiles concurrently in a single call rather than making individual GraphQL requests per user.

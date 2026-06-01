@@ -18,6 +18,14 @@ const QuerySearchPullRequests = `
 		}
 	}`
 
+const QuerySearchIssues = `
+	query($query: String!, $cursor: String) {
+		search(query: $query, type: ISSUE, first: 100, after: $cursor) {
+			pageInfo { hasNextPage endCursor }
+			edges { node { ... on Issue { number title createdAt state author { login } repository { nameWithOwner } } } }
+		}
+	}`
+
 const QueryMergedPRCount = `
 	query($query: String!) {
 		search(query: $query, type: ISSUE, first: 1) {
@@ -92,6 +100,31 @@ type SearchPullRequestsResponse struct {
 		} `json:"pageInfo"`
 		Edges []struct {
 			Node PullRequestNode `json:"node"`
+		} `json:"edges"`
+	} `json:"search"`
+}
+
+type IssueNode struct {
+	Number    int    `json:"number"`
+	Title     string `json:"title"`
+	CreatedAt string `json:"createdAt"`
+	State     string `json:"state"`
+	Author    struct {
+		Login string `json:"login"`
+	} `json:"author"`
+	Repository struct {
+		NameWithOwner string `json:"nameWithOwner"`
+	} `json:"repository"`
+}
+
+type SearchIssuesResponse struct {
+	Search struct {
+		PageInfo struct {
+			HasNextPage bool    `json:"hasNextPage"`
+			EndCursor   *string `json:"endCursor"`
+		} `json:"pageInfo"`
+		Edges []struct {
+			Node IssueNode `json:"node"`
 		} `json:"edges"`
 	} `json:"search"`
 }

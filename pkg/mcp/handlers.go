@@ -121,3 +121,27 @@ func viewIssuesHandler(params json.RawMessage) (string, bool) {
 	}
 	return formatIssueDetails(details), false
 }
+
+func listIssuesHandler(params json.RawMessage) (string, bool) {
+	var args struct {
+		Repositories []string `json:"repositories"`
+		Author       string   `json:"author"`
+	}
+	if err := json.Unmarshal(params, &args); err != nil {
+		return err.Error(), true
+	}
+	if args.Author == "" {
+		return "author is required", true
+	}
+
+	repos, err := slop.ResolveRepos(args.Repositories)
+	if err != nil {
+		return err.Error(), true
+	}
+
+	issues, err := slop.FindIssuesByAuthor(repos, args.Author)
+	if err != nil {
+		return err.Error(), true
+	}
+	return formatIssues(issues), false
+}
