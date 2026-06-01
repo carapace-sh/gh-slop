@@ -28,10 +28,6 @@ type UserProfilePR struct {
 }
 
 func FetchUserProfiles(logins []string) ([]UserProfile, error) {
-	if _, err := api.GraphQLClient(); err != nil {
-		return nil, fmt.Errorf("failed to create graphql client: %w", err)
-	}
-
 	type result struct {
 		profile UserProfile
 		err     error

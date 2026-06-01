@@ -6,7 +6,7 @@ import (
 )
 
 func FetchAccessibleRepos() ([]UserRepoResponse, error) {
-	client, err := RESTClient()
+	client, err := restClient()
 	if err != nil {
 		return nil, err
 	}
@@ -34,7 +34,7 @@ func FetchAccessibleRepos() ([]UserRepoResponse, error) {
 }
 
 func ClosePR(repo string, number int) (string, error) {
-	client, err := RESTClient()
+	client, err := restClient()
 	if err != nil {
 		return "", err
 	}

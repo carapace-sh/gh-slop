@@ -15,7 +15,7 @@ func FetchOpenPullRequests(owner, name string) ([]PullRequestNode, error) {
 	hasNext := true
 	var cursor *string
 
-	client, err := GraphQLClient()
+	client, err := graphQLClient()
 	if err != nil {
 		return nil, err
 	}
@@ -49,7 +49,7 @@ func FetchPullRequestsByAuthor(owner, name, author string) ([]PullRequestNode, e
 	hasNext := true
 	var cursor *string
 
-	client, err := GraphQLClient()
+	client, err := graphQLClient()
 	if err != nil {
 		return nil, err
 	}
@@ -73,7 +73,7 @@ func FetchPullRequestsByAuthor(owner, name, author string) ([]PullRequestNode, e
 }
 
 func FetchMergedPRCount(searchQuery string) (int, error) {
-	client, err := GraphQLClient()
+	client, err := graphQLClient()
 	if err != nil {
 		return 0, err
 	}
@@ -89,7 +89,7 @@ func FetchMergedPRCount(searchQuery string) (int, error) {
 }
 
 func FetchUserProfile(login string) (UserProfileResponse, error) {
-	client, err := GraphQLClient()
+	client, err := graphQLClient()
 	if err != nil {
 		return UserProfileResponse{}, err
 	}
@@ -105,7 +105,7 @@ func FetchUserProfile(login string) (UserProfileResponse, error) {
 }
 
 func FetchPRDetailsForRepo(owner, name string, numbers []int) (map[string]any, error) {
-	client, err := GraphQLClient()
+	client, err := graphQLClient()
 	if err != nil {
 		return nil, err
 	}

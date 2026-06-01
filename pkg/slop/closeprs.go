@@ -42,10 +42,6 @@ func ClosePRs(prRefs []string) ([]ClosedPR, error) {
 		})
 	}
 
-	if _, err := api.RESTClient(); err != nil {
-		return nil, fmt.Errorf("failed to create REST client: %w", err)
-	}
-
 	type closeResult struct {
 		index int
 		closed ClosedPR

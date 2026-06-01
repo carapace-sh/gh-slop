@@ -84,10 +84,6 @@ func FetchPRDetails(prRefs []string) ([]PRDetail, error) {
 		refIndex[key][number] = i
 	}
 
-	if _, err := api.GraphQLClient(); err != nil {
-		return nil, fmt.Errorf("failed to create graphql client: %w", err)
-	}
-
 	type prResult struct {
 		key     prKey
 		details []PRDetail

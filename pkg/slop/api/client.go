@@ -17,25 +17,25 @@ type restDoer interface {
 }
 
 var (
-	graphqlOnce    sync.Once
-	graphqlClient  graphQLDoer
-	graphqlInitErr error
+	graphQLOnce     sync.Once
+	cachedGraphQL   graphQLDoer
+	graphQLInitErr  error
 
-	restOnce    sync.Once
-	restClient  restDoer
-	restInitErr error
+	restOnce       sync.Once
+	cachedREST     restDoer
+	restInitErr    error
 )
 
-func GraphQLClient() (graphQLDoer, error) {
-	graphqlOnce.Do(func() {
-		graphqlClient, graphqlInitErr = ghapi.NewGraphQLClient(ghapi.ClientOptions{})
+func graphQLClient() (graphQLDoer, error) {
+	graphQLOnce.Do(func() {
+		cachedGraphQL, graphQLInitErr = ghapi.NewGraphQLClient(ghapi.ClientOptions{})
 	})
-	return graphqlClient, graphqlInitErr
+	return cachedGraphQL, graphQLInitErr
 }
 
-func RESTClient() (restDoer, error) {
+func restClient() (restDoer, error) {
 	restOnce.Do(func() {
-		restClient, restInitErr = ghapi.DefaultRESTClient()
+		cachedREST, restInitErr = ghapi.DefaultRESTClient()
 	})
-	return restClient, restInitErr
+	return cachedREST, restInitErr
 }
