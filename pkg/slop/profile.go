@@ -163,9 +163,6 @@ func fetchUserProfile(client graphqlDoer, login string) (UserProfile, error) {
 }
 
 func parseTime(s string) time.Time {
-	t, err := time.Parse(time.RFC3339, s)
-	if err != nil {
-		return time.Time{}
-	}
+	t, _ := time.Parse(time.RFC3339, s)
 	return t
 }

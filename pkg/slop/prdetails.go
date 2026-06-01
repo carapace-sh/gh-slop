@@ -164,13 +164,20 @@ func fetchPRDetailsForRepo(client graphqlDoer, owner, name string, numbers []int
 		))
 	}
 
+	var buf strings.Builder
+	for i := range numbers {
+		if i > 0 {
+			buf.WriteString(", ")
+		}
+		fmt.Fprintf(&buf, "$pr%d: Int!", i)
+	}
 	query = fmt.Sprintf(`query($owner: String!, $name: String!, %s) {
   repository(owner: $owner, name: $name) {
     %s
   }
 }`,
-		buildVarDeclarations(numbers),
-		joinAliases(aliases),
+		buf.String(),
+		strings.Join(aliases, "\n    "),
 	)
 
 	var response map[string]any
@@ -207,22 +214,7 @@ func fetchPRDetailsForRepo(client graphqlDoer, owner, name string, numbers []int
 	return details, nil
 }
 
-func buildVarDeclarations(numbers []int) string {
-	parts := make([]string, len(numbers))
-	for i := range numbers {
-		parts[i] = fmt.Sprintf("$pr%d: Int!", i)
-	}
-	return strings.Join(parts, ", ")
-}
-
-func joinAliases(aliases []string) string {
-	return strings.Join(aliases, "\n    ")
-}
-
 func strVal(v any) string {
-	if v == nil {
-		return ""
-	}
 	if s, ok := v.(string); ok {
 		return s
 	}

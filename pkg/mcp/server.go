@@ -42,8 +42,8 @@ type Error struct {
 }
 
 type InitializeResult struct {
-	ProtocolVersion string                 `json:"protocolVersion"`
-	Capabilities    map[string]interface{} `json:"capabilities"`
+	ProtocolVersion string                   `json:"protocolVersion"`
+	Capabilities    map[string]any           `json:"capabilities"`
 	ServerInfo      struct {
 		Name    string `json:"name"`
 		Version string `json:"version"`

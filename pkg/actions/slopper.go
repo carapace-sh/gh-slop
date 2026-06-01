@@ -86,8 +86,6 @@ func groupByAuthor(prs []slop.PRWithRepo) map[string][]slop.PRWithRepo {
 }
 
 func sortedStrings(s ...string) []string {
-	sorted := make([]string, len(s))
-	copy(sorted, s)
-	sort.Strings(sorted)
-	return sorted
+	sort.Strings(s)
+	return s
 }
