@@ -16,25 +16,27 @@ import (
 //	slopper ([1/2] full name)
 //	another ([4/8] full name)
 func ActionSloppers(repos ...string) carapace.Action {
-	resolvedRepos, err := slop.ResolveRepos(repos)
-	if err != nil {
-		return carapace.ActionMessage(err.Error())
-	}
-
-	repoKeys := make([]string, len(resolvedRepos))
-	for i, r := range resolvedRepos {
-		repoKeys[i] = r.Owner + "/" + r.Name
-	}
-
 	return carapace.ActionCallback(func(c carapace.Context) carapace.Action {
-		prs, err := slop.ListNewContributors(resolvedRepos, 3) // TODO config for min contributions
+		resolvedRepos, err := slop.ResolveRepos(repos)
 		if err != nil {
 			return carapace.ActionMessage(err.Error())
 		}
 
-		authorPRs := groupByAuthor(prs)
-		return actionSloppersValues(authorPRs)
-	}).Cache(15*time.Minute, key.String(sortedStrings(repoKeys...)...))
+		repoKeys := make([]string, len(resolvedRepos))
+		for i, r := range resolvedRepos {
+			repoKeys[i] = r.Owner + "/" + r.Name
+		}
+
+		return carapace.ActionCallback(func(c carapace.Context) carapace.Action {
+			prs, err := slop.ListNewContributors(resolvedRepos, 3) // TODO config for min contributions
+			if err != nil {
+				return carapace.ActionMessage(err.Error())
+			}
+
+			authorPRs := groupByAuthor(prs)
+			return actionSloppersValues(authorPRs)
+		}).Cache(15*time.Minute, key.String(sortedStrings(repoKeys...)...))
+	})
 }
 
 type slopper struct {
