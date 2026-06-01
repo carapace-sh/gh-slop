@@ -10,6 +10,7 @@ type ClosedPR struct {
 	Repo   string // "owner/repo"
 	Number int
 	State  string // "closed" on success, or error message
+	Err    error
 }
 
 // Ref returns the PR reference in "OWNER/REPO#NUMBER" format.
@@ -43,10 +44,7 @@ func ClosePRs(prRefs []string) ([]ClosedPR, error) {
 
 	results, err := parallelMap(refs, 5, func(r parsedRef) (ClosedPR, error) {
 		state, err := api.ClosePR(r.repo, r.number)
-		if err != nil {
-			return ClosedPR{Repo: r.repo, Number: r.number, State: fmt.Sprintf("error: %v", err)}, nil
-		}
-		return ClosedPR{Repo: r.repo, Number: r.number, State: state}, nil
+		return ClosedPR{Repo: r.repo, Number: r.number, State: state, Err: err}, nil
 	})
 	if err != nil {
 		return nil, err
