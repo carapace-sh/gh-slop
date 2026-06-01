@@ -34,6 +34,7 @@ func init() {
 
 	spec.AddMacro("Repos", spec.MacroN(actions.ActionRepos))
 	spec.AddMacro("Sloppers", spec.MacroV(actions.ActionSloppers))
+	spec.AddMacro("SlopperPRs", spec.MacroI(actions.ActionSlopperPRs))
 	spec.Register(rootCmd)
 }
 

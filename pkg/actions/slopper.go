@@ -87,6 +87,45 @@ func groupByAuthor(prs []slop.PRWithRepo) map[string][]slop.PRWithRepo {
 	return grouped
 }
 
+// SlopperPROpts configures the ActionSlopperPRs action.
+type SlopperPROpts struct {
+	// Slopper is the username to fetch PRs for
+	Slopper string
+	// Repos restricts the repositories to search (empty defaults to current repo)
+	Repos []string
+}
+
+func (o SlopperPROpts) cacheKey() key.Key {
+	return key.String(sortedStrings(append(o.Repos, o.Slopper)...)...)
+}
+
+// ActionSlopperPRs completes PR refs (OWNER/REPO#NUMBER) for a specific slopper
+//
+//	cli/cli#1234 (PR title)
+//	cli/cli#5678 (another PR title)
+func ActionSlopperPRs(opts SlopperPROpts) carapace.Action {
+	return carapace.ActionCallback(func(c carapace.Context) carapace.Action {
+		resolvedRepos, err := slop.ResolveRepos(opts.Repos)
+		if err != nil {
+			return carapace.ActionMessage(err.Error())
+		}
+
+		return carapace.ActionCallback(func(c carapace.Context) carapace.Action {
+			prs, err := slop.FindPRsByAuthor(resolvedRepos, opts.Slopper)
+			if err != nil {
+				return carapace.ActionMessage(err.Error())
+			}
+
+			var vals []string
+			for _, pr := range prs {
+				vals = append(vals, pr.PullRequest.Ref(pr.Repo), pr.PullRequest.Title)
+			}
+
+			return carapace.ActionValuesDescribed(vals...).Tag("slopper PRs")
+		}).Cache(15*time.Minute, opts.cacheKey())
+	})
+}
+
 func sortedStrings(s ...string) []string {
 	sort.Strings(s)
 	return s
