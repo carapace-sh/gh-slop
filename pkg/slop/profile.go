@@ -2,7 +2,6 @@ package slop
 
 import (
 	"fmt"
-	"sync"
 	"time"
 
 	"github.com/rsteube/gh-slop/pkg/slop/api"
@@ -28,50 +27,20 @@ type UserProfilePR struct {
 }
 
 func FetchUserProfiles(logins []string) ([]UserProfile, error) {
-	type result struct {
-		profile UserProfile
-		err     error
-	}
-
-	sem := make(chan struct{}, 5)
-	var wg sync.WaitGroup
-	results := make(chan result, len(logins))
-
-	for _, login := range logins {
-		wg.Add(1)
-		go func(login string) {
-			defer wg.Done()
-			sem <- struct{}{}
-			defer func() { <-sem }()
-
-			resp, err := api.FetchUserProfile(login)
-			if err != nil {
-				results <- result{err: fmt.Errorf("%s: %w", login, err)}
-				return
-			}
-
-			profile, err := toUserProfile(login, resp)
-			if err != nil {
-				results <- result{err: fmt.Errorf("%s: %w", login, err)}
-				return
-			}
-			results <- result{profile: profile}
-		}(login)
-	}
-
-	go func() {
-		wg.Wait()
-		close(results)
-	}()
-
-	var profiles []UserProfile
-	for res := range results {
-		if res.err != nil {
-			return nil, res.err
+	profiles, err := parallelMap(logins, 5, func(login string) (UserProfile, error) {
+		resp, err := api.FetchUserProfile(login)
+		if err != nil {
+			return UserProfile{}, fmt.Errorf("%s: %w", login, err)
 		}
-		profiles = append(profiles, res.profile)
+		profile, err := toUserProfile(login, resp)
+		if err != nil {
+			return UserProfile{}, fmt.Errorf("%s: %w", login, err)
+		}
+		return profile, nil
+	})
+	if err != nil {
+		return nil, err
 	}
-
 	return profiles, nil
 }
 

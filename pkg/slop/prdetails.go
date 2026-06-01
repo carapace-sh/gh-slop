@@ -2,7 +2,6 @@ package slop
 
 import (
 	"fmt"
-	"sync"
 
 	"github.com/rsteube/gh-slop/pkg/slop/api"
 	"github.com/cli/go-gh/v2/pkg/repository"
@@ -84,47 +83,33 @@ func FetchPRDetails(prRefs []string) ([]PRDetail, error) {
 		refIndex[key][number] = i
 	}
 
-	type prResult struct {
+	type repoResult struct {
 		key     prKey
 		details []PRDetail
-		err     error
 	}
 
-	sem := make(chan struct{}, 5)
-	var wg sync.WaitGroup
-	ch := make(chan prResult, len(grouped))
-
-	for key, numbers := range grouped {
-		wg.Add(1)
-		go func(key prKey, numbers []int) {
-			defer wg.Done()
-			sem <- struct{}{}
-			defer func() { <-sem }()
-
-			response, err := api.FetchPRDetailsForRepo(key.owner, key.name, numbers)
-			if err != nil {
-				ch <- prResult{key: key, err: err}
-				return
-			}
-
-			details := toPRDetails(key.owner, key.name, numbers, response)
-			ch <- prResult{key: key, details: details}
-		}(key, numbers)
+	keys := make([]prKey, 0, len(grouped))
+	for key := range grouped {
+		keys = append(keys, key)
 	}
 
-	go func() {
-		wg.Wait()
-		close(ch)
-	}()
+	results, err := parallelMap(keys, 5, func(key prKey) (repoResult, error) {
+		numbers := grouped[key]
+		response, err := api.FetchPRDetailsForRepo(key.owner, key.name, numbers)
+		if err != nil {
+			return repoResult{key: key}, fmt.Errorf("%s/%s: %w", key.owner, key.name, err)
+		}
+		details := toPRDetails(key.owner, key.name, numbers, response)
+		return repoResult{key: key, details: details}, nil
+	})
+	if err != nil {
+		return nil, err
+	}
 
 	ordered := make([]PRDetail, len(prRefs))
-	for res := range ch {
-		if res.err != nil {
-			return nil, fmt.Errorf("%s/%s: %w", res.key.owner, res.key.name, res.err)
-		}
+	for _, res := range results {
 		for _, d := range res.details {
-			key := prKey{owner: res.key.owner, name: res.key.name}
-			idx := refIndex[key][d.Number]
+			idx := refIndex[res.key][d.Number]
 			ordered[idx] = d
 		}
 	}

@@ -2,7 +2,6 @@ package slop
 
 import (
 	"fmt"
-	"sync"
 
 	"github.com/rsteube/gh-slop/pkg/slop/api"
 )
@@ -42,45 +41,15 @@ func ClosePRs(prRefs []string) ([]ClosedPR, error) {
 		})
 	}
 
-	type closeResult struct {
-		index int
-		closed ClosedPR
-		err    error
-	}
-
-	sem := make(chan struct{}, 5)
-	var wg sync.WaitGroup
-	ch := make(chan closeResult, len(refs))
-
-	for i, r := range refs {
-		wg.Add(1)
-		go func(i int, r parsedRef) {
-			defer wg.Done()
-			sem <- struct{}{}
-			defer func() { <-sem }()
-
-			state, err := api.ClosePR(r.repo, r.number)
-			if err != nil {
-				ch <- closeResult{index: i, closed: ClosedPR{Repo: r.repo, Number: r.number, State: fmt.Sprintf("error: %v", err)}}
-				return
-			}
-
-			ch <- closeResult{index: i, closed: ClosedPR{Repo: r.repo, Number: r.number, State: state}}
-		}(i, r)
-	}
-
-	go func() {
-		wg.Wait()
-		close(ch)
-	}()
-
-	results := make([]ClosedPR, len(refs))
-	for res := range ch {
-		if res.err != nil {
-			return nil, res.err
+	results, err := parallelMap(refs, 5, func(r parsedRef) (ClosedPR, error) {
+		state, err := api.ClosePR(r.repo, r.number)
+		if err != nil {
+			return ClosedPR{Repo: r.repo, Number: r.number, State: fmt.Sprintf("error: %v", err)}, nil
 		}
-		results[res.index] = res.closed
+		return ClosedPR{Repo: r.repo, Number: r.number, State: state}, nil
+	})
+	if err != nil {
+		return nil, err
 	}
-
 	return results, nil
 }
