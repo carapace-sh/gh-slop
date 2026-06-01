@@ -40,10 +40,9 @@ func FetchOpenPullRequests(owner, name string) ([]PullRequestNode, error) {
 
 func FetchPullRequestsByAuthor(owner, name, author string) ([]PullRequestNode, error) {
 	var results []PullRequestNode
+	searchQuery := fmt.Sprintf("repo:%s/%s is:pr is:open author:%s", owner, name, author)
 	vars := map[string]any{
-		"owner":  owner,
-		"name":   name,
-		"author": author,
+		"query": searchQuery,
 	}
 
 	hasNext := true
@@ -56,17 +55,17 @@ func FetchPullRequestsByAuthor(owner, name, author string) ([]PullRequestNode, e
 
 	for hasNext {
 		vars["cursor"] = cursor
-		var resp PullRequestsResponse
-		if err := client.Do(QueryPullRequestsByAuthor, vars, &resp); err != nil {
+		var resp SearchPullRequestsResponse
+		if err := client.Do(QuerySearchPullRequests, vars, &resp); err != nil {
 			return nil, err
 		}
 
-		for _, edge := range resp.Repository.PullRequests.Edges {
+		for _, edge := range resp.Search.Edges {
 			results = append(results, edge.Node)
 		}
 
-		hasNext = resp.Repository.PullRequests.PageInfo.HasNextPage
-		cursor = resp.Repository.PullRequests.PageInfo.EndCursor
+		hasNext = resp.Search.PageInfo.HasNextPage
+		cursor = resp.Search.PageInfo.EndCursor
 	}
 
 	return results, nil
@@ -157,4 +156,7 @@ type PullRequestNode struct {
 	Author    struct {
 		Login string `json:"login"`
 	} `json:"author"`
+	Repository struct {
+		NameWithOwner string `json:"nameWithOwner"`
+	} `json:"repository"`
 }

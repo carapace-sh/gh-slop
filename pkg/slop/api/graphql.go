@@ -10,13 +10,11 @@ const QueryOpenPullRequests = `
 		}
 	}`
 
-const QueryPullRequestsByAuthor = `
-	query($owner: String!, $name: String!, $author: String!, $cursor: String) {
-		repository(owner: $owner, name: $name) {
-			pullRequests(first: 100, after: $cursor, states: [OPEN], author: $author) {
-				pageInfo { hasNextPage endCursor }
-				edges { node { number title createdAt author { login } } }
-			}
+const QuerySearchPullRequests = `
+	query($query: String!, $cursor: String) {
+		search(query: $query, type: ISSUE, first: 100, after: $cursor) {
+			pageInfo { hasNextPage endCursor }
+			edges { node { ... on PullRequest { number title createdAt author { login } repository { nameWithOwner } } } }
 		}
 	}`
 
@@ -54,14 +52,7 @@ type PullRequestsResponse struct {
 				EndCursor   *string `json:"endCursor"`
 			} `json:"pageInfo"`
 			Edges []struct {
-				Node struct {
-					Number    int    `json:"number"`
-					Title     string `json:"title"`
-					CreatedAt string `json:"createdAt"`
-					Author    struct {
-						Login string `json:"login"`
-					} `json:"author"`
-				} `json:"node"`
+				Node PullRequestNode `json:"node"`
 			} `json:"edges"`
 		} `json:"pullRequests"`
 	} `json:"repository"`
@@ -91,6 +82,18 @@ type UserProfileResponse struct {
 			} `json:"nodes"`
 		} `json:"pullRequests"`
 	} `json:"user"`
+}
+
+type SearchPullRequestsResponse struct {
+	Search struct {
+		PageInfo struct {
+			HasNextPage bool    `json:"hasNextPage"`
+			EndCursor   *string `json:"endCursor"`
+		} `json:"pageInfo"`
+		Edges []struct {
+			Node PullRequestNode `json:"node"`
+		} `json:"edges"`
+	} `json:"search"`
 }
 
 type UserRepoResponse struct {
