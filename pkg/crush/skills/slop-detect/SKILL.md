@@ -137,6 +137,7 @@ Group findings by pattern type. Common patterns observed in the wild:
 | **Bounty farming** | Author targets repos with bounty/fund labels across platforms | Bounty repos, /claim markers, multiple bounty platforms |
 | **Codex toolchain** | PR validation references Codex-specific paths | `/tmp/codex-go-toolchain/` in validation steps |
 | **Stale title prefix** | PR title contains "PR Title:" prefix | Floyd agent artifact, title not cleaned up |
+| **Cross-repo feature spraying** | Author files coordinated PRs to multiple related sub-repos in the same org on the same day | 4 PRs to carapace-spec, carapace-spec-clap, carapace-bridge, carapace on same day |
 
 ### Step 6: Classify authors
 
@@ -195,6 +196,7 @@ When the user explicitly asks to close PRs, use `mcp_gh-slop_close-prs` with the
 | Coordinated with other flagged authors | High | Check repo overlap + timing overlap |
 | Self-promotion pattern | Medium | Same content across many "awesome-*" repos |
 | Very low total commits (< 50) | Medium | Total commits from `profile-sloppers` |
+| AI agent test artifacts in PATH | High | `/tmp/codex-go-toolchain/` or similar in test commands |
 
 ### PR-level signals
 
