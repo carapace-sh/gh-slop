@@ -42,12 +42,16 @@ type Error struct {
 }
 
 type InitializeResult struct {
-	ProtocolVersion string                   `json:"protocolVersion"`
-	Capabilities    map[string]any           `json:"capabilities"`
+	ProtocolVersion string      `json:"protocolVersion"`
+	Capabilities    ServerCaps `json:"capabilities"`
 	ServerInfo      struct {
 		Name    string `json:"name"`
 		Version string `json:"version"`
 	} `json:"serverInfo"`
+}
+
+type ServerCaps struct {
+	Tools map[string]any `json:"tools,omitempty"`
 }
 
 type ToolCallHandler func(args json.RawMessage) (any, *Error)
@@ -158,19 +162,25 @@ func firstNonSpace(message []byte) byte {
 }
 
 func (s *Server) handleRequest(request Request) (Response, bool) {
+	resp := Response{
+		JSONRPC: "2.0",
+		ID:      request.ID,
+	}
+
+	// Notifications have no ID and don't get responses
+	if request.Method == "notifications/initialized" {
+		return Response{}, false
+	}
+
 	if len(request.ID) == 0 {
 		return Response{}, false
 	}
 
-	var resp Response
-	resp.JSONRPC = "2.0"
-	resp.ID = request.ID
-
 	switch request.Method {
 	case "initialize":
 		resp.Result = InitializeResult{
-			ProtocolVersion: "2024-11-05",
-			Capabilities:    map[string]any{"tools": map[string]any{}},
+			ProtocolVersion: "2025-11-25",
+			Capabilities:    ServerCaps{Tools: map[string]any{}},
 			ServerInfo: struct {
 				Name    string `json:"name"`
 				Version string `json:"version"`
@@ -182,7 +192,7 @@ func (s *Server) handleRequest(request Request) (Response, bool) {
 	case "tools/list":
 		resp.Result = map[string]any{"tools": s.tools}
 	case "tools/call":
-		resp.Result, resp.Error = s.toolHandler(request.Params)
+		resp.Result, resp.Error = s.handleToolCall(request.Params)
 	default:
 		resp.Error = &Error{Code: -32601, Message: "Method not found"}
 	}
@@ -190,141 +200,106 @@ func (s *Server) handleRequest(request Request) (Response, bool) {
 	return resp, true
 }
 
-func ToolHandler(params json.RawMessage) (any, *Error) {
+func (s *Server) handleToolCall(params json.RawMessage) (any, *Error) {
 	var args struct {
-		Name string `json:"name"`
+		Name      string          `json:"name"`
+		Arguments json.RawMessage `json:"arguments"`
 	}
-
 	if err := json.Unmarshal(params, &args); err != nil {
 		return nil, &Error{Code: -32602, Message: "Invalid params"}
 	}
+
+	var content string
+	var isErr bool
 
 	switch args.Name {
 	case "list-repos":
-		return ListReposHandler(params)
+		content, isErr = listReposHandler(args.Arguments)
 	case "list-sloppers":
-		return ListSloppersHandler(params)
+		content, isErr = listSloppersHandler(args.Arguments)
 	case "profile-sloppers":
-		return ProfileSloppersHandler(params)
+		content, isErr = profileSloppersHandler(args.Arguments)
 	case "view-prs":
-		return SlopPRsHandler(params)
+		content, isErr = viewPRsHandler(args.Arguments)
 	case "close-prs":
-		return ClosePRsHandler(params)
+		content, isErr = closePRsHandler(args.Arguments)
 	default:
 		return nil, &Error{Code: -32602, Message: "Unknown tool: " + args.Name}
 	}
+
+	return map[string]any{
+		"content": []map[string]any{
+			{"type": "text", "text": content},
+		},
+		"isError": isErr,
+	}, nil
 }
 
-func ListReposHandler(params json.RawMessage) (any, *Error) {
-	var args struct {
-		Name      string   `json:"name"`
-		Arguments struct{} `json:"arguments"`
-	}
-
-	if err := json.Unmarshal(params, &args); err != nil {
-		return nil, &Error{Code: -32602, Message: "Invalid params"}
-	}
-
-	if args.Name != "list-repos" {
-		return nil, &Error{Code: -32602, Message: "Unknown tool: " + args.Name}
-	}
-
+func listReposHandler(params json.RawMessage) (string, bool) {
 	repos, err := slop.AccessibleRepos()
 	if err != nil {
-		return nil, &Error{Code: -32603, Message: err.Error()}
+		return err.Error(), true
 	}
 
 	var b strings.Builder
 	for _, r := range repos {
 		b.WriteString(r.Owner)
-		b.WriteString("/")
+		b.WriteByte('/')
 		b.WriteString(r.Name)
 		b.WriteByte('\n')
 	}
-
-	return map[string]any{
-		"content": []map[string]any{
-			{"type": "text", "text": b.String()},
-		},
-	}, nil
+	return b.String(), false
 }
 
-func ListSloppersHandler(params json.RawMessage) (any, *Error) {
+func listSloppersHandler(params json.RawMessage) (string, bool) {
 	var args struct {
-		Name      string `json:"name"`
-		Arguments struct {
-			Repositories     []string `json:"repositories"`
-			MinContributions int      `json:"min_contributions"`
-		} `json:"arguments"`
+		Repositories     []string `json:"repositories"`
+		MinContributions int      `json:"min_contributions"`
 	}
-
 	if err := json.Unmarshal(params, &args); err != nil {
-		return nil, &Error{Code: -32602, Message: "Invalid params"}
+		return err.Error(), true
 	}
 
-	if args.Name != "list-sloppers" {
-		return nil, &Error{Code: -32602, Message: "Unknown tool: " + args.Name}
-	}
-
-	repos, err := slop.ResolveRepos(args.Arguments.Repositories)
+	repos, err := slop.ResolveRepos(args.Repositories)
 	if err != nil {
-		return nil, &Error{Code: -32603, Message: err.Error()}
+		return err.Error(), true
 	}
 
-	minContrib := args.Arguments.MinContributions
+	minContrib := args.MinContributions
 	if minContrib == 0 {
 		minContrib = 1
 	}
 
 	prs, err := slop.ListNewContributors(repos, minContrib)
 	if err != nil {
-		return nil, &Error{Code: -32603, Message: err.Error()}
+		return err.Error(), true
 	}
-
-	return map[string]any{
-		"content": []map[string]any{
-			{"type": "text", "text": formatPRs(prs)},
-		},
-	}, nil
+	return formatPRs(prs), false
 }
 
-func ProfileSloppersHandler(params json.RawMessage) (any, *Error) {
+func profileSloppersHandler(params json.RawMessage) (string, bool) {
 	var args struct {
-		Name      string `json:"name"`
-		Arguments struct {
-			Sloppers []string `json:"sloppers"`
-		} `json:"arguments"`
+		Sloppers []string `json:"sloppers"`
 	}
-
 	if err := json.Unmarshal(params, &args); err != nil {
-		return nil, &Error{Code: -32602, Message: "Invalid params"}
+		return err.Error(), true
+	}
+	if len(args.Sloppers) == 0 {
+		return "sloppers is required", true
 	}
 
-	if args.Name != "profile-sloppers" {
-		return nil, &Error{Code: -32602, Message: "Unknown tool: " + args.Name}
-	}
-
-	if len(args.Arguments.Sloppers) == 0 {
-		return nil, &Error{Code: -32602, Message: "sloppers is required"}
-	}
-
-	profiles, err := slop.FetchUserProfiles(args.Arguments.Sloppers)
+	profiles, err := slop.FetchUserProfiles(args.Sloppers)
 	if err != nil {
-		return nil, &Error{Code: -32603, Message: err.Error()}
+		return err.Error(), true
 	}
-
-	return map[string]any{
-		"content": []map[string]any{
-			{"type": "text", "text": formatProfiles(profiles)},
-		},
-	}, nil
+	return formatProfiles(profiles), false
 }
 
 func formatProfiles(profiles []slop.UserProfile) string {
 	var b strings.Builder
 	for i, p := range profiles {
 		if i > 0 {
-			b.WriteString("\n")
+			b.WriteByte('\n')
 		}
 		mergeRate := 0
 		if p.TotalPRs > 0 {
@@ -345,43 +320,29 @@ func formatProfiles(profiles []slop.UserProfile) string {
 	return b.String()
 }
 
-func SlopPRsHandler(params json.RawMessage) (any, *Error) {
+func viewPRsHandler(params json.RawMessage) (string, bool) {
 	var args struct {
-		Name      string `json:"name"`
-		Arguments struct {
-			PRs []string `json:"prs"`
-		} `json:"arguments"`
+		PRs []string `json:"prs"`
 	}
-
 	if err := json.Unmarshal(params, &args); err != nil {
-		return nil, &Error{Code: -32602, Message: "Invalid params"}
+		return err.Error(), true
+	}
+	if len(args.PRs) == 0 {
+		return "prs is required", true
 	}
 
-	if args.Name != "view-prs" {
-		return nil, &Error{Code: -32602, Message: "Unknown tool: " + args.Name}
-	}
-
-	if len(args.Arguments.PRs) == 0 {
-		return nil, &Error{Code: -32602, Message: "prs is required"}
-	}
-
-	details, err := slop.FetchPRDetails(args.Arguments.PRs)
+	details, err := slop.FetchPRDetails(args.PRs)
 	if err != nil {
-		return nil, &Error{Code: -32603, Message: err.Error()}
+		return err.Error(), true
 	}
-
-	return map[string]any{
-		"content": []map[string]any{
-			{"type": "text", "text": formatPRDetails(details)},
-		},
-	}, nil
+	return formatPRDetails(details), false
 }
 
 func formatPRDetails(details []slop.PRDetail) string {
 	var b strings.Builder
 	for i, d := range details {
 		if i > 0 {
-			b.WriteString("\n")
+			b.WriteByte('\n')
 		}
 		fmt.Fprintf(&b, "## %s#%d\n", d.Repo, d.Number)
 		fmt.Fprintf(&b, "Title: %s\n", d.Title)
@@ -397,43 +358,30 @@ func formatPRDetails(details []slop.PRDetail) string {
 	return b.String()
 }
 
-func ClosePRsHandler(params json.RawMessage) (any, *Error) {
+func closePRsHandler(params json.RawMessage) (string, bool) {
 	var args struct {
-		Name      string `json:"name"`
-		Arguments struct {
-			PRs []string `json:"prs"`
-		} `json:"arguments"`
+		PRs []string `json:"prs"`
 	}
-
 	if err := json.Unmarshal(params, &args); err != nil {
-		return nil, &Error{Code: -32602, Message: "Invalid params"}
+		return err.Error(), true
 	}
 
-	if args.Name != "close-prs" {
-		return nil, &Error{Code: -32602, Message: "Unknown tool: " + args.Name}
+	if len(args.PRs) == 0 {
+		return "prs is required", true
 	}
 
-	if len(args.Arguments.PRs) == 0 {
-		return nil, &Error{Code: -32602, Message: "prs is required"}
-	}
-
-	results, err := slop.ClosePRs(args.Arguments.PRs)
+	results, err := slop.ClosePRs(args.PRs)
 	if err != nil {
-		return nil, &Error{Code: -32603, Message: err.Error()}
+		return err.Error(), true
 	}
-
-	return map[string]any{
-		"content": []map[string]any{
-			{"type": "text", "text": formatClosedPRs(results)},
-		},
-	}, nil
+	return formatClosedPRs(results), false
 }
 
 func formatClosedPRs(results []slop.ClosedPR) string {
 	var b strings.Builder
 	for i, r := range results {
 		if i > 0 {
-			b.WriteString("\n")
+			b.WriteByte('\n')
 		}
 		fmt.Fprintf(&b, "%s#%d: %s", r.Repo, r.Number, r.State)
 	}
